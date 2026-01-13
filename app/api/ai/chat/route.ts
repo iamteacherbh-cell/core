@@ -1,67 +1,53 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/utils/supabase/server';
+import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
-  // نقلنا السطر إلى هنا، داخل الدالة
-  const supabase = createSupabaseServerClient(); 
+// هذه الدالة تنشئ عميلًا صحيحًا للخادم
+// تقرأ الكوكيز من الطلب القادم من المتصفح
+function createSupabaseClientForAPI() {
+  const cookieStore = cookies();
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get(name) {
+          return cookieStore.get(name)?.value;
+        },
+      },
+    }
+  );
+}
+
+export async function POST(req) {
+  // استخدم العميل الخاص بالـ API هنا
+  const supabase = createSupabaseClientForAPI();
+
   try {
-    // 1. التحقق من هوية المستخدم
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error || !user) {
+      console.error('API Error: User not authenticated.', error);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. جلب البيانات من جسم الطلب
-    const { message, session_id } = await request.json();
+    const body = await req.json();
+    const { message } = body;
 
-    if (!message || typeof message !== 'string' || message.trim() === '') {
-      return NextResponse.json({ success: false, error: 'Message content is required.' }, { status: 400 });
-    }
+    // ... هنا باقي كود الذكاء الاصطناعي الخاص بك ...
+    // مثال بسيط:
+    const reply = `تم استلام رسالتك: ${message}`;
 
-    // 3. حفظ رسالة المستخدم في قاعدة البيانات
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    return NextResponse.json({ reply });
+
+  } catch (error) {
+    console.error('API Error: ', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
     );
-
-    const { error: userMessageError } = await supabaseAdmin
-      .from('messages')
-      .insert({
-        user_id: user.id,
-        content: message.trim(),
-        role: 'user',
-        session_id: session_id || null,
-      });
-
-    if (userMessageError) {
-      console.error('Error saving user message:', userMessageError);
-      return NextResponse.json({ success: false, error: 'Failed to save your message.' }, { status: 500 });
-    }
-
-    // 4. (اختياري) يمكنك هنا إرسال إشعار للأدمن أو حفظ رسالة نظام
-    // مثال: إرسال رسالة شكر عام للمستخدم
-    const { error: thankYouMessageError } = await supabaseAdmin
-      .from('messages')
-      .insert({
-        user_id: user.id,
-        content: 'شكراً لرسالتك، سيتم الرد عليك في أقرب وقت ممكن.',
-        role: 'assistant', // نستخدم دور المساعد كرسالة نظام
-        session_id: session_id || null,
-      });
-
-    if (thankYouMessageError) {
-      console.error('Error saving thank you message:', thankYouMessageError);
-      // لا نعيد خطأ هنا لأن الرسالة الأساسية تم حفظها
-    }
-
-    // 5. إرجاع رد ناجح
-    return NextResponse.json({
-      success: true,
-      response: 'شكراً لرسالتك، سيتم الرد عليك في أقرب وقت ممكن.',
-    });
-
-  } catch (error: any) {
-    console.error('An unexpected error occurred in /api/ai/chat:', error);
-    return NextResponse.json({ success: false, error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
