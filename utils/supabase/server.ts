@@ -1,10 +1,11 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
-export function createClient() {
+// لقد غيرنا اسم الدالة هنا لتجنب التعارض
+export function createSupabaseServerClient() {
   const cookieStore = cookies()
 
-  return createClient(
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
