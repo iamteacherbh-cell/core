@@ -62,11 +62,11 @@ export default function AIChatPage() {
   const [showChannelInfo, setShowChannelInfo] = useState(false)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
-  const [showMediaPreview, = useState<{
-    url: string
-    type: string
-    title: string
-  } | null>(null)
+  const [showMediaPreview, setShowMediaPreview] = useState<{
+  url: string
+  type: string
+  title: string
+} | null>(null)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const usersDropdownRef = useRef<HTMLDivElement>(null)
