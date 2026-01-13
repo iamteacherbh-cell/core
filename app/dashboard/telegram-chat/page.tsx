@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { createClient } from '@supabase/supabase-js' // ============= تحديث: استيراد Supabase =============
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -23,6 +24,12 @@ import {
   Loader2
 } from "lucide-react"
 import { toast } from "sonner"
+
+// ============= تحديث: إنشاء عميل Supabase =============
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 interface TelegramUser {
   id: string
@@ -57,112 +64,99 @@ export default function TelegramChatPage() {
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // جلب قائمة المستخدمين المرتبطين
+  // ============= تحديث: دالة جلب المستخدمين (مباشرة من Supabase) =============
   const loadUsers = async () => {
     setLoading(true)
     try {
-      const res = await fetch("/api/telegram/users")
-      const data = await res.json()
+      // نحصل على المستخدمين الذين لديهم telegram_chat_id ونرتبهم حسب آخر رسالة
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .not('telegram_chat_id', 'is', null)
+        .order('last_message_sent_at', { ascending: false, nullsFirst: false });
+
+      if (error) throw error;
       
-      if (data.success) {
-        setUsers(data.users)
-        
-        // تحديث المستخدم المحدد إذا كان موجوداً
-        if (selectedUser) {
-          const currentUser = data.users.find((u: TelegramUser) => u.id === selectedUser.id)
-          if (currentUser) {
-            setSelectedUser(currentUser)
-          }
-        }
-      } else {
-        toast.error(data.error || "فشل في تحميل المستخدمين")
-      }
+      setUsers(data || [])
     } catch (error: any) {
-      toast.error("خطأ في الاتصال")
+      toast.error(error.message || "فشل في تحميل المستخدمين")
       console.error("Error loading users:", error)
     } finally {
       setLoading(false)
     }
   }
 
-  // جلب رسائل مستخدم محدد
-  const loadUserMessages = async (userId: string) => {
+  // ============= تحديث: دالة جلب رسائل مستخدم (مباشرة من Supabase) =============
+  const loadUserMessages = async (user: TelegramUser) => {
+    if (!user.telegram_chat_id) return;
+
     try {
-      const res = await fetch(`/api/telegram/messages/user/${userId}`)
-      const data = await res.json()
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('telegram_chat_id', user.telegram_chat_id)
+        .order('created_at', { ascending: true });
       
-      if (data.success) {
-        setMessages(data.messages)
-        
-        // تمرير للأسفل لعرض أحدث الرسائل
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-        }, 100)
-      } else {
-        toast.error(data.error || "فشل في تحميل الرسائل")
-      }
-    } catch (error) {
+      if (error) throw error;
+      
+      setMessages(data || [])
+    } catch (error: any) {
+      toast.error(error.message || "فشل في تحميل الرسائل")
       console.error("Failed to load messages:", error)
-      toast.error("خطأ في تحميل الرسائل")
     }
   }
 
   // اختيار مستخدم
   const handleSelectUser = (user: TelegramUser) => {
     setSelectedUser(user)
-    loadUserMessages(user.id)
+    loadUserMessages(user)
   }
 
-  // إرسال رسالة
+  // ============= تحديث: دالة إرسال رسالة (تبقى تستدعي API Route للأمان) =============
   const sendMessage = async () => {
     if (!selectedUser || !newMessage.trim() || sending) return
 
     const messageContent = newMessage.trim()
     setSending(true)
 
-    // إضافة الرسالة مؤقتاً إلى القائمة
+    // إضافة الرسالة مؤقتاً إلى القائمة (Optimistic Update)
     const tempMessage: ChatMessage = {
       id: `temp-${Date.now()}`,
       user_id: selectedUser.id,
       content: messageContent,
       role: 'admin',
       created_at: new Date().toISOString(),
-      sender_name: "أنت"
+      sender_name: "أنت",
+      telegram_chat_id: selectedUser.telegram_chat_id
     }
     
     setMessages(prev => [...prev, tempMessage])
     setNewMessage("")
 
     try {
+      // من الأفضل إرسال الطلب إلى API Route لأنه يحتوي على التوكن السري للبوت
       const res = await fetch("/api/telegram/send", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: selectedUser.id,
+          telegram_chat_id: selectedUser.telegram_chat_id, // نرسل chat_id
           message: messageContent
         }),
       })
 
       const data = await res.json()
       
-      if (data.success) {
-        toast.success("✅ تم إرسال الرسالة")
-        
-        // تحديث الرسائل
-        await loadUserMessages(selectedUser.id)
-        
-        // تحديث قائمة المستخدمين
-        await loadUsers()
-      } else {
-        toast.error(`❌ ${data.error || "فشل في الإرسال"}`)
-        // إزالة الرسالة المؤقتة إذا فشل الإرسال
-        setMessages(prev => prev.filter(m => m.id !== tempMessage.id))
+      if (!data.success) {
+        throw new Error(data.error || "فشل في الإرسال")
       }
+      
+      toast.success("✅ تم إرسال الرسالة")
+      // سيتم تحديث الرسائل عبر Real-time subscription عند إدراجها في قاعدة البيانات
+      
     } catch (error: any) {
-      toast.error("خطأ في الاتصال")
-      setMessages(prev => prev.filter(m => m.id !== tempMessage.id))
+      toast.error(error.message || "خطأ في الاتصال")
+      // إزالة الرسالة المؤقتة إذا فشل الإرسال
+      setMessages(prev => prev.filter(m => m.id === tempMessage.id))
     } finally {
       setSending(false)
     }
@@ -175,20 +169,50 @@ export default function TelegramChatPage() {
     user.telegram_username?.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  // تحديث تلقائي كل 30 ثانية
+  // ============= تحديث: Real-time Subscription (الأهم) =============
+  useEffect(() => {
+    // لا نبدأ الاشتراك إلا إذا تم اختيار مستخدم ولديه chat_id
+    if (!selectedUser?.telegram_chat_id) return;
+
+    // الاستماع للرسائل الجديدة للمستخدم المحدد فقط
+    const channelName = `messages:${selectedUser.telegram_chat_id}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'messages',
+          filter: `telegram_chat_id=eq.${selectedUser.telegram_chat_id}`
+        },
+        (payload) => {
+          console.log('New message received for user:', selectedUser.telegram_chat_id, payload.new);
+          // تجنب إضافة الرسالة المؤقتة مرة أخرى
+          setMessages(prev => {
+            if (prev.some(msg => msg.id === payload.new.id)) {
+              return prev;
+            }
+            return [...prev, payload.new as ChatMessage];
+          });
+        }
+      )
+      .subscribe();
+
+    // دالة التنظيف عند اختيار مستخدم آخر أو مغادرة الصفحة
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedUser]); // يعاد تشغيله عند تغيير المستخدم المحدد
+
+  // ============= تحديث: تحميل البيانات الأولي وإزالة Polling =============
   useEffect(() => {
     loadUsers()
-    
-    const interval = setInterval(() => {
-      if (selectedUser) {
-        loadUserMessages(selectedUser.id)
-      }
-      loadUsers()
-    }, 30000)
-    
-    return () => clearInterval(interval)
-  }, [selectedUser])
+  }, [])
 
+  // ============= تم حذف useEffect الخاص بـ setInterval =============
+  // لم نعد بحاجة إليه بفضل Real-time
+  
   // تمرير للأسفل عند تغيير الرسائل
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
