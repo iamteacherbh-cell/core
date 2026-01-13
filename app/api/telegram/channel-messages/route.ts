@@ -1,46 +1,38 @@
-import { NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase/server"
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server'; // المساعد الذي أنشأناه
 
-export const dynamic = 'force-dynamic'
+// إنشاء عميل Supabase للخادم
+const supabase = createClient();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerClient()
-    
-    // التحقق من المصادقة
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 })
+    // 1. التحقق من هوية المستخدم
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error('Authentication error:', authError);
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // جلب رسائل قناة Icore
-    const { data: messages } = await supabase
-      .from("messages")
-      .select(`
-        id,
-        content,
-        telegram_username,
-        telegram_message_id,
-        created_at,
-        metadata
-      `)
-      .eq("metadata->>source", "icore_channel")
-      .order("created_at", { ascending: false })
-      .limit(50)
+    // 2. جلب جميع رسائل القناة من قاعدة البيانات
+    // نرتب الرسائل من الأحدث إلى الأقدم لعرضها بشكل صحيح
+    const { data, error } = await supabase
+      .from('channel_messages')
+      .select('*')
+      .order('created_at', { ascending: false });
 
+    if (error) {
+      console.error('Error fetching channel messages:', error);
+      return NextResponse.json({ success: false, error: 'Failed to fetch messages from database.' }, { status: 500 });
+    }
+
+    // 3. إرجاع قائمة الرسائل
     return NextResponse.json({
       success: true,
-      messages: messages || [],
-      count: messages?.length || 0,
-      channel_info: {
-        id: "-1003583611128",
-        name: "قناة Icore",
-        processed: true
-      }
-    })
+      messages: data || []
+    });
 
   } catch (error: any) {
-    console.error("[CHANNEL-MESSAGES] Error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('An unexpected error occurred in /api/telegram/channel-messages:', error);
+    return NextResponse.json({ success: false, error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
