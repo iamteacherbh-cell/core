@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/utils/supabase/browser' // <--- الاستيراد الجديد
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -20,11 +20,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-// إنشاء عميل Supabase
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+
 
 // تعريف الواجهات
 interface SubscriptionPlan {
