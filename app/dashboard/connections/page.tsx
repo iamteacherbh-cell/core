@@ -1,11 +1,11 @@
-import { createClient } from "@/lib/supabase/server"
+import { supabase } from '@/utils/supabase/browser' 
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 
 export default async function ConnectionsPage() {
-  const supabase = await createClient()
+  const supabase = createSupabaseServerClient(); // <--- 2. استخدام المساعد الصحيح
   const {
     data: { user },
   } = await supabase.auth.getUser()
