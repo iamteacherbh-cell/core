@@ -106,11 +106,7 @@ interface ChannelMessage {
 type ActiveTab = 'personal' | 'channel'
 type MessageFilter = 'all' | 'unread' | 'pinned' | 'media'
 
-// إنشاء عميل Supabase مرة واحدة فقط
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+
 
 export default function AIChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
