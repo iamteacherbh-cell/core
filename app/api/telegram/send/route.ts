@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/utils/supabase/server';
 
-// إنشاء عميل Supabase للخادم
-const supabase = createSupabaseServerClient();
-
 export async function POST(request: NextRequest) {
+  // نقلنا السطر إلى هنا، داخل الدالة
+  const supabase = createSupabaseServerClient(); 
   try {
     // 1. التحقق من هوية المستخدم (يجب أن يكون أدمن أو مستخدم مسجل دخول)
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -100,4 +99,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
+
 
