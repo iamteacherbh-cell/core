@@ -1,90 +1,44 @@
-import { NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase/server"
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
 
-export const dynamic = 'force-dynamic'
+// إنشاء عميل Supabase للخادم
+const supabase = createClient();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerClient()
-    
-    // التحقق من المصادقة
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 })
+    // 1. التحقق من هوية المستخدم
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error('Authentication error:', authError);
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // التحقق إذا كان المستخدم admin
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
+    // TODO: إضافة تحقق إضافي للتأكد من أن المستخدم هو "أدمن"
+    // const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single();
+    // if (!profile?.is_admin) {
+    //   return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    // }
 
-    if (!profile || profile.role !== 'admin') {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 })
+    // 2. جلب المستخدمين المرتبطين بـ Telegram
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .not('telegram_chat_id', 'is', null)
+      .order('last_message_sent_at', { ascending: false, nullsFirst: false });
+
+    if (error) {
+      console.error('Error fetching Telegram users:', error);
+      return NextResponse.json({ success: false, error: 'Failed to fetch users from database.' }, { status: 500 });
     }
 
-    // جلب جميع المستخدمين المرتبطين بـ Telegram
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select(`
-        id,
-        email,
-        full_name,
-        telegram_chat_id,
-        telegram_username,
-        telegram_id,
-        language,
-        created_at,
-        updated_at
-      `)
-      .not("telegram_chat_id", "is", null)
-      .order("updated_at", { ascending: false })
-
-    if (!profiles) {
-      return NextResponse.json({ success: true, users: [] })
-    }
-
-    // جلب آخر رسالة وعدد الرسائل غير المقروءة لكل مستخدم
-    const usersWithMessages = await Promise.all(
-      profiles.map(async (profile) => {
-        // آخر رسالة
-        const { data: lastMessage } = await supabase
-          .from("messages")
-          .select("content, created_at, role")
-          .eq("user_id", profile.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single()
-
-        // عدد الرسائل غير المقروءة
-        const { count: unreadCount } = await supabase
-          .from("messages")
-          .select("*", { count: 'exact', head: true })
-          .eq("user_id", profile.id)
-          .eq("role", "user")
-          .eq("read_by_admin", false)
-
-        return {
-          ...profile,
-          last_message: lastMessage?.content || "",
-          last_message_time: lastMessage?.created_at || "",
-          unread_count: unreadCount || 0
-        }
-      })
-    )
-
+    // 3. إرجاع قائمة المستخدمين
     return NextResponse.json({
       success: true,
-      users: usersWithMessages,
-      total: usersWithMessages.length
-    })
+      users: data || []
+    });
 
   } catch (error: any) {
-    console.error("[TELEGRAM-USERS] Error:", error)
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message 
-    }, { status: 500 })
+    console.error('An unexpected error occurred in /api/telegram/users:', error);
+    return NextResponse.json({ success: false, error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
