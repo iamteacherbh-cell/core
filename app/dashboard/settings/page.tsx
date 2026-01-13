@@ -1,556 +1,383 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, FormEvent } from "react"
+import { createClient } from '@supabase/supabase-js'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import { 
-  MessageSquare, 
-  Copy, 
-  Check, 
   User, 
-  Settings, 
   Mail, 
-  Shield,
-  Bell,
-  Link,
-  Unlink,
+  Link as LinkIcon, 
+  Save, 
+  Check, 
+  X, 
+  Loader2, 
   RefreshCw,
-  ExternalLink,
-  Key
+  MessageSquare,
+  Trash2,
+  AlertTriangle
 } from "lucide-react"
 import { toast } from "sonner"
 
-interface UserProfile {
+// إنشاء عميل Supabase
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+interface Profile {
   id: string
   email: string
-  full_name?: string
-  telegram_chat_id?: string
-  telegram_username?: string
-  telegram_id?: string
-  language?: string
+  full_name: string | null
+  avatar_url: string | null
+  telegram_chat_id: string | null
+  telegram_username: string | null
+  language: string | null
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("profile")
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [telegramLinked, setTelegramLinked] = useState(false)
-  const [telegramChatId, setTelegramChatId] = useState("")
-  const [telegramUsername, setTelegramUsername] = useState("")
-  const [telegramUserId, setTelegramUserId] = useState("")
-  const [telegramIdInput, setTelegramIdInput] = useState("")
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  
+  // حالة نموذج تحديث الملف الشخصي
+  const [fullName, setFullName] = useState("")
+  const [avatarUrl, setAvatarUrl] = useState("")
+  
+  // حالة ربط Telegram
+  const [linkingTelegram, setLinkingTelegram] = useState(false)
+  const [telegramLinkToken, setTelegramLinkToken] = useState<string | null>(null)
+  const [checkingLinkStatus, setCheckingLinkStatus] = useState(false)
 
-  // جلب بيانات المستخدم
-  const loadUserProfile = async () => {
-    try {
-      const res = await fetch("/api/user/profile")
-      const data = await res.json()
-      
-      if (data.success) {
-        setUserProfile(data.user)
-        setTelegramLinked(!!data.user.telegram_chat_id)
-        setTelegramChatId(data.user.telegram_chat_id || "")
-        setTelegramUsername(data.user.telegram_username || "")
-        setTelegramUserId(data.user.telegram_id || "")
-        
-        // تعبئة حقل الإدخال إذا كان هناك معرف Telegram
-        if (data.user.telegram_id) {
-          setTelegramIdInput(data.user.telegram_id)
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load user profile:", error)
-      toast.error("فشل في تحميل بيانات المستخدم")
-    }
-  }
-
-  // ربط حساب Telegram باستخدام معرف المستخدم
-  const linkTelegram = async () => {
-    if (!telegramIdInput.trim()) {
-      toast.error("يرجى إدخال معرف Telegram الخاص بك")
-      return
-    }
-
-    if (!userProfile?.id) {
-      toast.error("لم يتم تحميل بيانات المستخدم")
-      return
-    }
-
-    setLoading(true)
-    try {
-      const res = await fetch("/api/telegram/link-by-id", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_id: userProfile.id,
-          telegram_user_id: telegramIdInput.trim()
-        }),
-      })
-
-      const data = await res.json()
-      
-      if (data.success) {
-        toast.success("✅ تم ربط حساب Telegram بنجاح!")
-        setTelegramLinked(true)
-        setTelegramUserId(telegramIdInput.trim())
-        
-        // تحديث الحالة
-        setTimeout(() => {
-          loadUserProfile()
-        }, 1000)
-      } else {
-        toast.error(`❌ ${data.error || "فشل في الربط"}`)
-      }
-    } catch (error) {
-      toast.error("خطأ في الاتصال بالخادم")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // إلغاء ربط Telegram
-  const unlinkTelegram = async () => {
-    if (!userProfile?.id) return
-
-    if (!confirm("هل تريد إلغاء ربط حساب Telegram؟")) return
-
-    setLoading(true)
-    try {
-      const res = await fetch("/api/telegram/unlink", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_id: userProfile.id
-        }),
-      })
-
-      const data = await res.json()
-      
-      if (data.success) {
-        toast.success("تم إلغاء الربط بنجاح")
-        setTelegramLinked(false)
-        setTelegramChatId("")
-        setTelegramUsername("")
-        setTelegramUserId("")
-        setTelegramIdInput("")
-      } else {
-        toast.error("فشل في إلغاء الربط")
-      }
-    } catch (error) {
-      toast.error("خطأ في الاتصال")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // نسخ معرف Telegram
-  const copyTelegramId = () => {
-    if (!telegramIdInput) {
-      toast.error("لا يوجد معرف لنسخه")
-      return
-    }
-    
-    navigator.clipboard.writeText(telegramIdInput).then(() => {
-      toast.success("تم نسخ معرف Telegram")
-    }).catch(() => {
-      toast.error("فشل في نسخ النص")
-    })
-  }
-
-  // تحديث الحالة
-  const refreshStatus = async () => {
-    await loadUserProfile()
-    toast.success("تم تحديث الحالة")
-  }
-
-  // تحميل البيانات عند فتح الصفحة
+  // ============= جلب بيانات الملف الشخصي =============
   useEffect(() => {
-    loadUserProfile()
+    const fetchProfile = async () => {
+      setLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error("المستخدم غير مسجل الدخول")
+        setLoading(false)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (error) {
+        toast.error("فشل في جلب بيانات الملف الشخصي")
+        console.error(error)
+      } else if (data) {
+        setProfile(data)
+        setFullName(data.full_name || "")
+        setAvatarUrl(data.avatar_url || "")
+      }
+      setLoading(false)
+    }
+
+    fetchProfile()
   }, [])
 
+  // ============= الاستماع لتحديثات ربط Telegram (Real-time) =============
+  useEffect(() => {
+    if (!profile?.id || !checkingLinkStatus) return;
+
+    const channel = supabase
+      .channel(`profile-link-status:${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${profile.id}`
+        },
+        (payload) => {
+          if (payload.new.telegram_chat_id && !payload.old.telegram_chat_id) {
+            // تم ربط الحس بنجاح
+            setProfile(prev => prev ? { ...prev, ...payload.new } as Profile : null)
+            setCheckingLinkStatus(false)
+            setLinkingTelegram(false)
+            setTelegramLinkToken(null)
+            toast.success("✅ تم ربط حساب Telegram بنجاح!")
+          }
+        }
+      )
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
+  }, [profile?.id, checkingLinkStatus])
+
+  // ============= دالة حفظ تغييرات الملف الشخصي =============
+  const handleSaveProfile = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!profile) return
+
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: fullName,
+          avatar_url: avatarUrl || null,
+        })
+        .eq('id', profile.id)
+
+      if (error) throw error
+      
+      setProfile(prev => prev ? { ...prev, full_name: fullName, avatar_url } : null)
+      toast.success("تم حفظ التغييرات بنجاح")
+    } catch (error: any) {
+      toast.error(error.message || "فشل في حفظ التغييرات")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ============= دالة بدء عملية ربط Telegram =============
+  const handleLinkTelegram = async () => {
+    if (!profile) return
+
+    setLinkingTelegram(true)
+    try {
+      // استدعاء API Route لإنشاء طلب ربط جديد
+      const response = await fetch('/api/user/link-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      const data = await response.json()
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "فشل في إنشاء رابط الربط")
+      }
+
+      setTelegramLinkToken(data.token)
+      setCheckingLinkStatus(true)
+      toast.info("تم إنشاء رمز الربط. اتبع الخطوات التالية.")
+    } catch (error: any) {
+      toast.error(error.message || "حدث خطأ ما")
+      setLinkingTelegram(false)
+    }
+  }
+
+  // ============= دالة فك ربط Telegram =============
+  const handleUnlinkTelegram = async () => {
+    if (!profile) return
+    
+    if (!confirm("هل أنت متأكد من فك ربط حساب Telegram؟")) return
+
+    try {
+      const response = await fetch('/api/user/unlink-telegram', {
+        method: 'POST',
+      })
+      
+      const data = await response.json()
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "فشل في فك الربط")
+      }
+
+      setProfile(prev => prev ? { ...prev, telegram_chat_id: null, telegram_username: null } : null)
+      toast.success("تم فك ربط حساب Telegram")
+    } catch (error: any) {
+      toast.error(error.message || "حدث خطأ ما")
+    }
+  }
+
+  // ============= دالة حذف الحساب =============
+  const handleDeleteAccount = async () => {
+    if (!profile) return
+
+    const confirmation = prompt("لحذف حسابك نهائياً، اكتب كلمة 'حذف' للتأكيد:")
+    if (confirmation !== 'حذف') return
+
+    try {
+      const response = await fetch('/api/user/account', { method: 'DELETE' })
+      const data = await response.json()
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "فشل في حذف الحساب")
+      }
+
+      toast.success("تم حذف حسابك بنجاح. سيتم توجيهك...")
+      setTimeout(() => {
+        window.location.href = '/signup'
+      }, 2000)
+    } catch (error: any) {
+      toast.error(error.message || "حدث خطأ ما")
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!profile) {
+    return <div>لم يتم العثور على الملف الشخصي.</div>
+  }
+
   return (
-    <div className="container mx-auto p-4 max-w-6xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <Settings className="h-8 w-8" />
-          الإعدادات
-        </h1>
-        <p className="text-gray-600 mt-2">إدارة حسابك وإعدادات التواصل</p>
+    <div className="max-w-4xl mx-auto p-6 space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold">الإعدادات</h1>
+        <p className="text-muted-foreground">إدارة حسابك وإعدادات الخصوصية.</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        {/* تبويبات التنقل */}
-        <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5">
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            <span className="hidden sm:inline">الملف الشخصي</span>
-          </TabsTrigger>
-          <TabsTrigger value="telegram" className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" />
-            <span className="hidden sm:inline">Telegram</span>
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            <span className="hidden sm:inline">الإشعارات</span>
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            <span className="hidden sm:inline">الأمان</span>
-          </TabsTrigger>
-          <TabsTrigger value="account" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">الحساب</span>
-          </TabsTrigger>
-        </TabsList>
-
-        {/* تبويب الملف الشخصي */}
-        <TabsContent value="profile">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                الملف الشخصي
-              </CardTitle>
-              <CardDescription>
-                معلومات حسابك الشخصية
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {userProfile ? (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="full_name">الاسم الكامل</Label>
-                      <Input 
-                        id="full_name" 
-                        defaultValue={userProfile.full_name || ""}
-                        placeholder="أدخل اسمك الكامل"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="email">البريد الإلكتروني</Label>
-                      <Input 
-                        id="email" 
-                        defaultValue={userProfile.email}
-                        readOnly
-                        className="bg-gray-50"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="user_id">معرف حساب iCore</Label>
-                      <div className="flex gap-2">
-                        <Input 
-                          id="user_id" 
-                          value={userProfile.id}
-                          readOnly
-                          className="font-mono bg-gray-50"
-                        />
-                        <Button
-                          onClick={() => navigator.clipboard.writeText(userProfile.id)}
-                          variant="outline"
-                          size="icon"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        هذا المعرف فريد لحسابك في iCore
-                      </p>
-                    </div>
-                    <div>
-                      <Label htmlFor="language">اللغة</Label>
-                      <select 
-                        id="language"
-                        defaultValue={userProfile.language || "ar"}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                      >
-                        <option value="ar">العربية</option>
-                        <option value="en">English</option>
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <Button className="mt-4">
-                    حفظ التغييرات
-                  </Button>
-                </>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">جاري تحميل بيانات الملف الشخصي...</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* تبويب Telegram */}
-        <TabsContent value="telegram">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                ربط حساب Telegram
-              </CardTitle>
-              <CardDescription>
-                ربط حسابك للتواصل المباشر مع iCore
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* حالة الربط */}
-              <div className={`p-4 rounded-lg ${telegramLinked ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {telegramLinked ? (
-                      <>
-                        <Check className="h-6 w-6 text-green-600" />
-                        <div>
-                          <h3 className="font-semibold text-green-800">حسابك مربوط</h3>
-                          <p className="text-sm text-green-700">
-                            يمكنك التواصل معنا عبر Telegram
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <MessageSquare className="h-6 w-6 text-yellow-600" />
-                        <div>
-                          <h3 className="font-semibold text-yellow-800">حسابك غير مربوط</h3>
-                          <p className="text-sm text-yellow-700">
-                            قم بربط حسابك للتواصل مع فريق الدعم
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  
-                  <Button
-                    onClick={refreshStatus}
-                    variant="ghost"
-                    size="sm"
-                    disabled={loading}
-                  >
-                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                  </Button>
-                </div>
+      {/* قسم الملف الشخصي */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            الملف الشخصي
+          </CardTitle>
+          <CardDescription>
+            قم بتحديث معلوماتك الشخصية وصورتك الرمزية.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSaveProfile} className="space-y-4">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-20 w-20">
+                <AvatarImage src={avatarUrl} alt={fullName} />
+                <AvatarFallback className="text-lg">
+                  {fullName.split(' ').map(n => n[0]).join('')}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <Label htmlFor="avatar_url">رابط الصورة الرمزية (URL)</Label>
+                <Input
+                  id="avatar_url"
+                  type="url"
+                  value={avatarUrl}
+                  onChange={(e) => setAvatarUrl(e.target.value)}
+                  placeholder="https://example.com/avatar.jpg"
+                />
               </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="full_name">الاسم الكامل</Label>
+              <Input
+                id="full_name"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="أدخل اسمك الكامل"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="email">البريد الإلكتروني</Label>
+              <Input id="email" type="email" value={profile.email} disabled />
+              <p className="text-sm text-muted-foreground mt-1">لا يمكن تغيير البريد الإلكتروني من هنا.</p>
+            </div>
 
-              {/* معلومات الربط */}
-              {telegramLinked && userProfile && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label>معرف Telegram</Label>
-                      <div className="flex gap-2">
-                        <Input 
-                          value={telegramUserId || "غير معروف"}
-                          readOnly
-                          className="font-mono bg-gray-50"
-                        />
-                        <Button
-                          onClick={copyTelegramId}
-                          variant="outline"
-                          size="icon"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div>
-                      <Label>اسم المستخدم</Label>
-                      <Input 
-                        value={telegramUsername || "غير معروف"}
-                        readOnly
-                        className="bg-gray-50"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <h4 className="font-semibold text-blue-800 mb-2">✅ مرتبط بنجاح</h4>
-                    <p className="text-sm text-blue-700">
-                      يمكنك الآن إرسال رسائل إلى البوت وسيتم حفظها في حسابك.
-                    </p>
-                  </div>
-                </div>
-              )}
+            <Button type="submit" disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              حفظ التغييرات
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
-              {/* إدخال معرف Telegram */}
-              <div className="space-y-4">
+      {/* قسم ربط Telegram */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            Telegram
+          </CardTitle>
+          <CardDescription>
+            اربط حسابك بـ Telegram لتلقي الإشعارات والرد على رسائلك مباشرة.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {profile.telegram_chat_id ? (
+            // حالة: الحساب مربوط
+            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Check className="h-6 w-6 text-green-600" />
                 <div>
-                  <Label htmlFor="telegram_id" className="flex items-center gap-2 mb-2">
-                    <Key className="h-4 w-4" />
-                    <span>معرف Telegram الخاص بك</span>
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="telegram_id"
-                      value={telegramIdInput}
-                      onChange={(e) => setTelegramIdInput(e.target.value)}
-                      placeholder="أدخل معرف Telegram الخاص بك (مثال: 1234567890)"
-                      className="font-mono"
-                      disabled={telegramLinked}
-                    />
-                    <Button
-                      onClick={copyTelegramId}
-                      variant="outline"
-                      size="icon"
-                      disabled={!telegramIdInput}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">
-                    أدخل المعرف الرقمي الذي حصلت عليه من @userinfobot
+                  <p className="font-medium text-green-800">الحساب مربوط</p>
+                  <p className="text-sm text-green-600">
+                    @{profile.telegram_username || 'بدون اسم مستخدم'}
                   </p>
                 </div>
-
-                {/* إرشادات الحصول على المعرف */}
-                <div className="border rounded-lg p-4 bg-gray-50">
-                  <h4 className="font-semibold mb-3">📱 كيف أحصل على معرف Telegram؟</h4>
-                  <ol className="space-y-3">
-                    <li className="flex items-start gap-3">
-                      <span className="h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">1</span>
-                      <div>
-                        <p className="font-medium">افتح Telegram</p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          افتح تطبيق Telegram على هاتفك
-                        </p>
-                      </div>
-                    </li>
-                    
-                    <li className="flex items-start gap-3">
-                      <span className="h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">2</span>
-                      <div>
-                        <p className="font-medium">ابحث عن @userinfobot</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <code className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">
-                            @userinfobot
-                          </code>
-                          <Button
-                            onClick={() => window.open("https://t.me/userinfobot", "_blank")}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-1"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            فتح
-                          </Button>
-                        </div>
-                      </div>
-                    </li>
-                    
-                    <li className="flex items-start gap-3">
-                      <span className="h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">3</span>
-                      <div>
-                        <p className="font-medium">انسخ المعرف الرقمي</p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          أرسل /start للبوت ثم انسخ الرقم الذي يظهر تحت "Your ID"
-                        </p>
-                      </div>
-                    </li>
-                    
-                    <li className="flex items-start gap-3">
-                      <span className="h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">4</span>
-                      <div>
-                        <p className="font-medium">الصقه هنا واضغط ربط</p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          الصق الرقم في الحقل أعلاه ثم اضغط زر "ربط حساب Telegram"
-                        </p>
-                      </div>
-                    </li>
-                  </ol>
+              </div>
+              <Button variant="destructive" size="sm" onClick={handleUnlinkTelegram}>
+                فك الربط
+              </Button>
+            </div>
+          ) : (
+            // حالة: الحساب غير مربوط
+            <div>
+              {linkingTelegram ? (
+                // حالة: جاري عملية الربط
+                <div className="text-center space-y-4 p-4 border rounded-lg">
+                  {checkingLinkStatus ? (
+                    <>
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                      <p>في انتظار ربط الحساب...</p>
+                      <p className="text-sm text-muted-foreground">
+                        اذهب إلى بوت iCore في Telegram وأرسل الأمر التالي:
+                      </p>
+                      <code className="block p-3 bg-muted rounded-md text-sm">
+                        /link {telegramLinkToken}
+                      </code>
+                      <Button variant="outline" size="sm" onClick={() => setCheckingLinkStatus(false)}>
+                        إلغاء
+                      </Button>
+                    </>
+                  ) : (
+                    <p>جاري إنشاء رمز الربط...</p>
+                  )}
                 </div>
-              </div>
-
-              {/* أزرار التحكم */}
-              <div className="flex gap-3 pt-4">
-                {telegramLinked ? (
-                  <Button
-                    onClick={unlinkTelegram}
-                    variant="destructive"
-                    disabled={loading}
-                    className="flex items-center gap-2"
-                  >
-                    <Unlink className="h-4 w-4" />
-                    إلغاء الربط
+              ) : (
+                // حالة: زر بدء الربط
+                <div className="text-center">
+                  <p className="text-muted-foreground mb-4">لم يتم ربط حساب Telegram بعد.</p>
+                  <Button onClick={handleLinkTelegram}>
+                    <LinkIcon className="h-4 w-4 ml-2" />
+                    ربط حساب Telegram
                   </Button>
-                ) : (
-                  <Button
-                    onClick={linkTelegram}
-                    disabled={loading || !telegramIdInput.trim()}
-                    className="flex items-center gap-2"
-                  >
-                    <Link className="h-4 w-4" />
-                    {loading ? "جاري المعالجة..." : "ربط حساب Telegram"}
-                  </Button>
-                )}
-                
-                <Button
-                  onClick={() => window.open("https://t.me/userinfobot", "_blank")}
-                  variant="outline"
-                  className="flex items-center gap-2"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  فتح @userinfobot
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* تبويبات أخرى... */}
-        <TabsContent value="notifications">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="h-5 w-5" />
-                الإشعارات
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">إعدادات الإشعارات قريباً...</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
+      <Separator />
 
-        <TabsContent value="security">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                الأمان
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">إعدادات الأمان قريباً...</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="account">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                الحساب
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">إعدادات الحساب قريباً...</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* قسم حذف الحساب */}
+      <Card className="border-destructive">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            حذف الحساب
+          </CardTitle>
+          <CardDescription>
+            حذف حسابك سيؤدي إلى إزالة جميع بياناتك نهائياً ولا يمكن التراجع عنه.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="destructive" onClick={handleDeleteAccount}>
+            <Trash2 className="h-4 w-4 ml-2" />
+            حذف حسابي نهائياً
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }
