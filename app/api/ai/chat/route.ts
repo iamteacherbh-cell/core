@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/utils/supabase/server';
 
 // إنشاء عميل Supabase للخادم
-const supabase = createClient();
+const supabase = createSupabaseServerClient();
 
 export async function POST(request: NextRequest) {
   try {
