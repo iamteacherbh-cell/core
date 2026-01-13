@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { createClient } from '@supabase/supabase-js' // ============= تحديث: استيراد Supabase =============
-import { Button } from "@/components/ui/button"
+import { supabase } from '@/utils/supabase/browser'
+  import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -25,11 +25,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-// ============= تحديث: إنشاء عميل Supabase =============
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+
 
 interface TelegramUser {
   id: string
@@ -505,3 +501,4 @@ export default function TelegramChatPage() {
     </div>
   )
 }
+
