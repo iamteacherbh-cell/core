@@ -1,0 +1,53 @@
+================================
+🔧 حل المشاكل الشائعة
+================================
+
+❌ المشكلة: "supabaseUrl is required"
+✅ الحل:
+   1. احذف ملف .env القديم
+   2. أنشئ ملف .env جديد بالمحتوى التالي (بالضبط):
+   
+SUPABASE_URL=https://tozvejugoydqcjaekerk.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvenZlanVnb3lkcWNqYWVrZXJrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODA1NzMzOCwiZXhwIjoyMDgzNjMzMzM4fQ.B0hA7UClJ5qkV0eNfL5yuuTuR-x7Vk3B6G4190JGabc
+TELEGRAM_BOT_TOKEN=8289329398:AAGGqvg_2cnmpmkS0-UecU1JkOFyCBeU6os
+PORT=3001
+
+   3. تأكد أن الملف لا يحتوي على:
+      - أسطر فارغة بين المتغيرات
+      - مسافات قبل أو بعد علامة =
+      - تعليقات (#)
+
+❌ المشكلة: السيرفر يتوقف بعد التشغيل
+✅ الحل:
+   - راجع ملف Console في KataBump لمعرفة الخطأ بالتحديد
+   - تأكد من تثبيت جميع المكتبات: npm install
+
+❌ المشكلة: Telegram لا يستقبل رسائل
+✅ الحل:
+   1. تأكد من تشغيل السيرفر بنجاح
+   2. قم بإعداد Webhook:
+      POST http://51.75.118.170:20166/setup-webhook
+      {
+        "webhookUrl": "http://51.75.118.170:20166/webhook/telegram"
+      }
+   3. اختبر البوت بإرسال رسالة له على Telegram
+
+❌ المشكلة: لا تظهر الرسائل في الموقع
+✅ الحل:
+   - تأكد من إنشاء جدول telegram_messages في Supabase
+   - نفذ السكريبت في Supabase SQL Editor:
+   
+CREATE TABLE IF NOT EXISTS telegram_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  telegram_user_id TEXT,
+  telegram_chat_id TEXT NOT NULL,
+  username TEXT,
+  message TEXT NOT NULL,
+  direction TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+📞 للدعم الفني:
+   راجع ملف START_SERVER.txt للتعليمات الكاملة
+
+================================
