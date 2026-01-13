@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { LanguageProvider } from "@/contexts/language-context"
+import { SupabaseProvider } from './providers' // <-- 1. استيراد SupabaseProvider الجديد
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -39,7 +40,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans antialiased`}>
-        <LanguageProvider>{children}</LanguageProvider>
+        {/* 2. لف التطبيق بالكامل داخل SupabaseProvider */}
+        <SupabaseProvider>
+          <LanguageProvider>{children}</LanguageProvider>
+        </SupabaseProvider>
         <Analytics />
       </body>
     </html>
