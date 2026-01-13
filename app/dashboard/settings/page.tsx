@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, FormEvent } from "react"
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/utils/supabase/browser'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
