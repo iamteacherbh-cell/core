@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server'; // المساعد الذي أنشأناه
-
+import { createSupabaseServerClient } from '@/utils/supabase/server';
 // إنشاء عميل Supabase للخادم
-const supabase = createClient();
+const supabase = createSupabaseServerClient();
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,3 +35,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
+
