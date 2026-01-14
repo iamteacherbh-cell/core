@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from '@/utils/supabase/browser' // <--- الاستيراد الجديد
+import { supabase } from '@/lib/supabase/client' // <--- تم تصحيح المسار هنا
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +19,7 @@ import {
   AlertCircle
 } from "lucide-react"
 import { toast } from "sonner"
+
 
 
 
