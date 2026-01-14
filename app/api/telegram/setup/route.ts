@@ -9,7 +9,15 @@ import {
 export async function POST(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const action = searchParams.get('action')
+    let action = searchParams.get('action')
+
+    // --- التعديل الرئيسي ---
+    // إذا لم يتم العثور على action في الرابط، ابحث في جسم الطلب
+    if (!action) {
+      const body = await request.json();
+      action = body.action;
+    }
+    // --- نهاية التعديل ---
     
     console.log(`[TELEGRAM-SETUP] Action requested: ${action}`)
     
@@ -62,6 +70,7 @@ export async function POST(request: Request) {
         return NextResponse.json({
           success: false,
           error: 'Invalid action',
+          message: `The action "${action}" is not supported.`,
           available_actions: ['set', 'info', 'delete', 'test']
         }, { status: 400 })
     }
