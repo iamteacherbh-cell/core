@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from '@/lib/supabase/client' // <--- تم تصحيح المسار هنا
+import { createClient } from '@/lib/supabase/client'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -20,7 +20,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-
+const supabase = createClient();
 
 
 // تعريف الواجهات
