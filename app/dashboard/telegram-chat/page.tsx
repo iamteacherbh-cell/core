@@ -116,6 +116,46 @@ export default function TelegramChatPage() {
     fetchChannelMessages();
   }, []);
 
+  // 4. الاستماع للرسائل الجديدة من المستخدم المحدد في الوقت الفعلي
+  useEffect(() => {
+    if (!selectedProfile) return;
+
+    const findSessionIdAndSubscribe = async () => {
+      const { data: session } = await supabase
+        .from('chat_sessions')
+        .select('id')
+        .eq('user_id', selectedProfile.id)
+        .order('last_message_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (session) {
+        const channel = supabase
+          .channel(`messages_admin:${session.id}`)
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'messages', filter: `session_id=eq.${session.id}` },
+            (payload) => {
+              console.log("New message received in admin chat!", payload.new);
+              setMessages(prev => {
+                // تجنب إضافة الرسالة إذا كانت موجودة بالفعل
+                if (prev.some(msg => msg.id === payload.new.id)) {
+                  return prev;
+                }
+                return [...prev, payload.new as Message];
+              });
+            }
+          )
+          .subscribe();
+        
+        return () => supabase.removeChannel(channel);
+      }
+    };
+
+    findSessionIdAndSubscribe();
+  }, [selectedProfile]);
+
+
   // --- Action Handlers ---
   const handleSendReply = async () => {
     if (!selectedProfile || !replyText.trim() || isSendingReply) return;
