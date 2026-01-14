@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, FormEvent } from "react"
-import { supabase } from '@/utils/supabase/browser'
+import { supabase } from '@/lib/supabase/client' // <--- تم تصحيح المسار هنا
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
