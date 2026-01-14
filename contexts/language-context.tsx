@@ -2,106 +2,91 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
-import { useSupabaseUser } from '@/app/providers' // === تحديث: استيراد Hook المستخدم
-import { supabase } from '@/utils/supabase/browser' // === تحديث: استيراد العميل المفيد
 import type { Language } from "@/lib/i18n"
-import { toast } from "sonner"
+import { createClient } from '@/utils/supabase/browser' // استيراد عميل المتصفح
+import { useSupabaseUser } from '@/app/providers' // استيراد هوك المستخدم
 
 interface LanguageContextType {
   language: Language
   setLanguage: (lang: Language) => void
   dir: "rtl" | "ltr"
-  loading: boolean // === تحديث: إضافة حالة تحميل
+  isLoading: boolean // إضافة حالة تحميل
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined)
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useSupabaseUser(); // === تحديث: الحصول على المستخدم الحالي
   const [language, setLanguageState] = useState<Language>("ar")
-  const [loading, setLoading] = useState(true) // === تحديث: حالة تحميل أولية
+  const [isLoading, setIsLoading] = useState(true) // نبدأ بحالة تحميل
+  const { user } = useSupabaseUser(); // الحصول على بيانات المستخدم
+  const supabase = createClient(); // إنشاء عميل Supabase
 
-  // === تحديث: دالة لجلب لغة المستخدم من قاعدة البيانات
-  const fetchUserLanguage = async () => {
-    if (!user) {
-      // إذا لم يكن هناك مستخدم، استخدم اللغة من localStorage كحل احتياطي
-      const saved = localStorage.getItem("language") as Language;
-      if (saved) {
-        setLanguageState(saved);
-      }
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('language')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        console.error("Error fetching user language:", error);
-        // في حالة الخطأ، استخدم اللغة من localStorage
-        const saved = localStorage.getItem("language") as Language;
-        if (saved) {
-          setLanguageState(saved);
-        }
-      } else if (data?.language) {
-        // إذا وجدنا لغة المستخدم في قاعدة البيانات، استخدمها
-        setLanguageState(data.language);
-        localStorage.setItem("language", data.language); // مزامنة localStorage
-      } else {
-        // إذا لم يكن لدى المستخدم لغة محفوظة، استخدم localStorage
-        const saved = localStorage.getItem("language") as Language;
-        if (saved) {
-          setLanguageState(saved);
-        }
-      }
-    } catch (error) {
-      console.error("Error in fetchUserLanguage:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // === تحديث: جلب اللغة عند تحميل المكون أو عند تغيير المستخدم
+  // useEffect لجلب اللغة عند تحميل المكون أو عند تغيير المستخدم
   useEffect(() => {
-    fetchUserLanguage();
-  }, [user]); // يعاد التشغيل عندما يتغير المستخدم (تسجيل دخول/خروج)
+    async function loadLanguage() {
+      setIsLoading(true);
+      
+      // 1. إذا كان المستخدم مسجل دخوله، حاول جلب لغته من Supabase
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('language')
+          .eq('id', user.id)
+          .single();
+
+        if (data && data.language) {
+          setLanguageState(data.language);
+        } else {
+          // 2. إذا لم توجد لغة في البروفايل، استخدم اللغة المحفوظة محليًا
+          const saved = localStorage.getItem("language") as Language;
+          if (saved) {
+            setLanguageState(saved);
+          }
+        }
+      } else {
+        // 3. إذا لم يكن المستخدم مسجل دخوله، استخدم اللغة المحفوظة محليًا
+        const saved = localStorage.getItem("language") as Language;
+        if (saved) {
+          setLanguageState(saved);
+        }
+      }
+      
+      setIsLoading(false);
+    }
+
+    loadLanguage();
+  }, [user]); // يعاد التشغيل فقط عندما يتغير المستخدم
 
   const setLanguage = async (lang: Language) => {
-    setLanguageState(lang)
-    localStorage.setItem("language", lang)
-    document.documentElement.lang = lang
-    document.documentElement.dir = lang === "ar" ? "rtl" : "ltr"
+    setLanguageState(lang);
+    localStorage.setItem("language", lang);
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
 
-    // === تحديث: حفظ اللغة الجديدة في قاعدة البيانات إذا كان المستخدم مسجل دخول
+    // إذا كان المستخدم مسجل دخوله، قم بتحديث لغته في Supabase
     if (user) {
-      try {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ language: lang })
-          .eq('id', user.id);
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ 
+          id: user.id, 
+          language: lang,
+          updated_at: new Date().toISOString(),
+        });
 
-        if (error) {
-          console.error("Error updating user language:", error);
-          toast.error("فشل في حفظ إعدادات اللغة");
-        }
-      } catch (error) {
-        console.error("Error in setLanguage:", error);
+      if (error) {
+        console.error("Error updating language in profile:", error);
       }
     }
-  };
+  }
 
-  // === تحديث: تحديث اتجاه الصفحة عند تغيير اللغة
   useEffect(() => {
+    // تحديث اتجاه الصفحة عند تغيير اللغة
     document.documentElement.lang = language
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr"
   }, [language])
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, dir: language === "ar" ? "rtl" : "ltr", loading }}>
+    <LanguageContext.Provider value={{ language, setLanguage, dir: language === "ar" ? "rtl" : "ltr", isLoading }}>
       {children}
     </LanguageContext.Provider>
   )
