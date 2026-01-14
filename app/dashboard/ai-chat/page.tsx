@@ -149,6 +149,19 @@ export default function AiChatPage() {
 
       if (aiError) throw aiError;
 
+      // === NEW: إرسال رد الذكاء الاصطناعي إلى القناة ===
+      const CHANNEL_ID = "-1003583611128";
+      try {
+        // لا ننتظر ردًا، نرسل في الخلفية
+        fetch('/api/telegram/send-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId: CHANNEL_ID, message: aiReply, isChannel: true }),
+        });
+      } catch (channelError) {
+        console.error("Failed to send AI reply to channel:", channelError);
+      }
+
     } catch (error: any) {
       console.error("Error sending message:", error)
       const errorMessage: Message = {
