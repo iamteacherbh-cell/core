@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server'; // <--- تم تصحيح المسار
+import { createClient } from '@/lib/supabase/server';
 
 // تم تغيير من POST إلى GET لأننا نجلب البيانات
 export async function GET(request: NextRequest) { 
-  const supabase = createSupabaseServerClient(); 
-  
+const supabase = await createClient();  
   try {
     // 1. التحقق من هوية المستخدم
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -36,3 +35,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
+
