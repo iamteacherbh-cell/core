@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createClient } from '@supabase/supabase-js'; // استيراد للعميل الإداري
+import { createClient as createAdminClient } from '@supabase/supabase-js'; // <--- تم إصلاح الخطأ هنا
 
 export async function POST(request: NextRequest) {
   // إنشاء عميل Supabase للتحقق من هوية المستخدم الحالي
-  const supabase =  await createClient();
+  const supabase = await createClient();
   
   try {
     // 1. التحقق من هوية المستخدم (يجب أن يكون أدمن أو مستخدم مسجل دخول)
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         chat_id: telegram_chat_id,
         text: message.trim(),
-        parse_mode: 'HTML', // يمكنك استخدام 'Markdown' أو 'HTML' لتنسيق الرسائل
+        parse_mode: 'HTML',
       }),
     });
 
@@ -49,9 +49,9 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // 4. حفظ الرسالة في قاعدة البيانات (مهم جداً لعمل Real-time)
+    // 4. حفظ الرسالة في قاعدة البيانات
     // نستخدم service_role_key للبحث عن أي مستخدم وحفظ الرسالة
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createAdminClient( // <--- تم استخدام الاسم الجديد هنا
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
@@ -64,11 +64,8 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (profileError || !profile) {
-      // هذا يعني أن المستخدم غير موجود في قاعدة البيانات، لكن الرسالة وصلت لتليجرام
       console.error('Could not find user profile for telegram_chat_id:', telegram_chat_id);
-      // لا نعيد خطأ للواجهة الأمامية لأن المهمة الأساسية (الإرسال لتليجرام) نجحت
     } else {
-      // ثانياً، إذا وجدنا المستخدم، قم بإدراج الرسالة
       const { error: insertError } = await supabaseAdmin
         .from('messages')
         .insert({
@@ -81,7 +78,6 @@ export async function POST(request: NextRequest) {
 
       if (insertError) {
         console.error('Error saving admin message to database:', insertError);
-        // هذا خطأ، لأن المستخدم لن يرى الرسالة في واجهته
         return NextResponse.json({ 
           success: false, 
           error: 'Message sent to Telegram but failed to save to chat history.' 
@@ -92,7 +88,7 @@ export async function POST(request: NextRequest) {
     // 5. إرجاع رد ناجح
     return NextResponse.json({
       success: true,
-      message_id: telegramData.result.message_id, // إرجاع معرف الرسالة من تليجرام
+      message_id: telegramData.result.message_id,
     });
 
   } catch (error: any) {
@@ -100,4 +96,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
-
