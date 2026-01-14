@@ -25,7 +25,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-const supabase = createClient();
+
 
 interface TelegramUser {
   id: string
@@ -59,6 +59,7 @@ export default function TelegramChatPage() {
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const supabase = createClient();
 
   // ============= تحديث: دالة جلب المستخدمين (مباشرة من Supabase) =============
   const loadUsers = async () => {
@@ -501,6 +502,7 @@ export default function TelegramChatPage() {
     </div>
   )
 }
+
 
 
 
