@@ -3,8 +3,13 @@ import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient() // <-- التعديل هنا
-    
+    const supabase = await createClient()
+
+    // === أضف هذا السطر للتشخيص ===
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    console.log("AUTH CHECK in /api/chat/message:", { authData, authError });
+    // ================================
+
     const { sessionId, userId, content } = await request.json()
 
     if (!sessionId || !userId || !content) {
