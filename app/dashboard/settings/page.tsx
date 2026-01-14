@@ -25,7 +25,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-
+const supabase = createClient();
 
 interface Profile {
   id: string
