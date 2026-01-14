@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/utils/supabase/server';
 
 export async function POST(request: NextRequest) {
-  // نقلنا السطر إلى هنا، داخل الدالة
   const supabase = createSupabaseServerClient(); 
+  
   try {
     // 1. التحقق من هوية المستخدم
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -12,13 +12,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // TODO: إضافة تحقق إضافي للتأكد من أن المستخدم هو "أدمن"
-    // const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single();
-    // if (!profile?.is_admin) {
-    //   return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
-    // }
+    // 2. التحقق من أن المستخدم هو "أدمن" (مهم جداً للأمان)
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single();
 
-    // 2. جلب المستخدمين المرتبطين بـ Telegram
+    if (profileError || !profile?.is_admin) {
+      console.error('Authorization error: User is not an admin.', profileError);
+      return NextResponse.json({ success: false, error: 'Forbidden: Admin access required.' }, { status: 403 });
+    }
+
+    // 3. جلب المستخدمين المرتبطين بـ Telegram
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -30,7 +36,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Failed to fetch users from database.' }, { status: 500 });
     }
 
-    // 3. إرجاع قائمة المستخدمين
+    // 4. إرجاع قائمة المستخدمين
     return NextResponse.json({
       success: true,
       users: data || []
@@ -41,5 +47,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
-
-
