@@ -1,11 +1,11 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server" // <--- تم تصحيح الاستيراد
 import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient() // <--- تم تصحيح الاستدعاء
 
     // ================= Auth =================
     const { data: { user } } = await supabase.auth.getUser()
