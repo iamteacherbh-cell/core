@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase/client' // <--- تم تصحيح المسار هنا
-
+import { createClient } from '@/lib/supabase/client'
+const supabase = createClient();
 type SupabaseContextType = {
   user: User | null
   loading: boolean
