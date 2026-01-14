@@ -6,79 +6,108 @@ export async function POST(req: Request) {
     const supabase = await createServerClient()
     const body = await req.json()
 
-    console.log("[TG] Webhook:", JSON.stringify(body, null, 2))
+    console.log("[TG] Webhook Received:", JSON.stringify(body, null, 2))
 
-    const msg =
-      body.message ||
-      body.channel_post ||
-      body.edited_message ||
-      body.edited_channel_post
+    // استخراج الرسالة من أنواع مختلفة (رسالة عادية، رسالة قناة، رسالة معدلة)
+    const message = body.message || body.edited_message;
+    const channelPost = body.channel_post || body.edited_channel_post;
 
-    if (!msg || !msg.text) {
-      return NextResponse.json({ ok: true })
-    }
+    // === الحالة الأولى: رسالة من مستخدم خاص (Direct Message) ===
+    if (message && message.text) {
+      const telegramChatId = message.chat.id.toString();
+      const telegramMessageId = message.message_id.toString();
+      const username = message.from?.username || message.chat?.username || null;
+      const text = message.text;
 
-    const telegramChatId = msg.chat.id.toString()   // مهم جداً
-    const telegramMessageId = msg.message_id.toString()
-    const username = msg.from?.username || msg.chat?.username || null
-    const text = msg.text
+      // 1️⃣ إيجاد المستخدم المرتبط بهذا الـ chat_id
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("telegram_chat_id", telegramChatId)
+        .single();
 
-    // 1️⃣ إيجاد المستخدم المرتبط بهذا chat
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id,email")
-      .eq("telegram_chat_id", telegramChatId)
-      .single()
+      // إذا لم يتم العثور على المستخدم، لا تفعل شيئًا وأكمل
+      if (!profile) {
+        console.log(`[TG] User not linked for chat_id: ${telegramChatId}`);
+        return NextResponse.json({ ok: true, note: "User not linked" });
+      }
 
-    if (!profile) {
-      return NextResponse.json({ ok: true, note: "User not linked" })
-    }
+      const userId = profile.id;
 
-    const userId = profile.id
-
-    // 2️⃣ جلب أو إنشاء session
-    let { data: session } = await supabase
-      .from("chat_sessions")
-      .select("id")
-      .eq("user_id", userId)
-      .order("last_message_at", { ascending: false })
-      .limit(1)
-      .single()
-
-    if (!session) {
-      const { data: newSession } = await supabase
+      // 2️⃣ جلب أو إنشاء جلسة (session) للمستخدم
+      let { data: session } = await supabase
         .from("chat_sessions")
-        .insert({
-          user_id: userId,
-          title: "Telegram Chat",
-          last_message_at: new Date().toISOString(),
-        })
-        .select()
-        .single()
+        .select("id")
+        .eq("user_id", userId)
+        .order("last_message_at", { ascending: false })
+        .limit(1)
+        .single();
 
-      session = newSession
+      if (!session) {
+        const { data: newSession } = await supabase
+          .from("chat_sessions")
+          .insert({
+            user_id: userId,
+            title: "Telegram Chat",
+            last_message_at: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+        
+        session = newSession;
+      }
+
+      // 3️⃣ حفظ الرسالة في جدول الرسائل الموحد
+      await supabase.from("messages").insert({
+        session_id: session.id,
+        user_id: userId,
+        role: "user",
+        content: text,
+        telegram_message_id: telegramMessageId,
+        telegram_chat_id: telegramChatId,
+        telegram_username: username,
+      });
+
+      // 4️⃣ تحديث وقت آخر رسالة في الجلسة
+      await supabase
+        .from("chat_sessions")
+        .update({ last_message_at: new Date().toISOString() })
+        .eq("id", session.id);
+        
+      console.log(`[TG] Saved user message from ${username} to session ${session.id}`);
     }
 
-    // 3️⃣ تخزين الرسالة
-    await supabase.from("messages").insert({
-      session_id: session.id,
-      user_id: userId,
-      role: "user",
-      content: text,
-      telegram_message_id: telegramMessageId,
-      telegram_chat_id: telegramChatId,
-      telegram_username: username,
-    })
+    // === الحالة الثانية: رسالة من قناة (Channel Post) ===
+    if (channelPost && channelPost.text) {
+      const channelChatId = channelPost.chat.id.toString(); // هذا هو المعرف الذي أرسلته (-100...)
+      const channelName = channelPost.chat.title;
+      const channelUsername = channelPost.chat.username;
+      const messageId = channelPost.message_id.toString();
+      const text = channelPost.text;
 
-    // 4️⃣ تحديث وقت الجلسة
-    await supabase
-      .from("chat_sessions")
-      .update({ last_message_at: new Date().toISOString() })
-      .eq("id", session.id)
+      console.log(`[TG] Received message from channel: ${channelName} (${channelChatId})`);
 
-    return NextResponse.json({ ok: true, session_id: session.id })
+      // حفظ رسالة القناة في جدولها الخاص
+      const { error } = await supabase.from("channel_messages").insert({
+        telegram_chat_id: channelChatId,
+        channel_name: channelName,
+        channel_username: channelUsername,
+        message_text: text,
+        message_id: messageId,
+      });
+
+      if (error) {
+        console.error("Error saving channel message:", error);
+      } else {
+        console.log(`[TG] Successfully saved channel message from ${channelName}`);
+      }
+    }
+
+    // إرجاع نجاح لتيليجرام حتى لا يعيد المحاولة
+    return NextResponse.json({ ok: true })
+
   } catch (err) {
-    console.error("[TG ERROR]", err)
-    return NextResponse.json({ error: "telegram webhook failed" }, { status: 500 })
+    console.error("[TG WEBHOOK ERROR]", err)
+    return NextResponse.json({ error: "Telegram webhook failed" }, { status: 500 })
   }
 }
