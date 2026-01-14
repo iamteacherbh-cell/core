@@ -20,7 +20,6 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-const supabase = createClient();
 
 
 // تعريف الواجهات
@@ -50,7 +49,7 @@ export default function SubscriptionPage() {
   const [loading, setLoading] = useState(true)
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])
   const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null)
-  
+  const supabase = createClient();
   // حالات الـ Modal للدفع
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null)
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false)
