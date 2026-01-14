@@ -1,28 +1,38 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseServerClient } from '@/lib/supabase/server'; // <--- تم تصحيح المسار
 
-// هذه دالة وهمية. يجب أن تستبدلها بالدالة الحقيقية التي تجلب رسائلك من تيليجرام.
-async function getTelegramMessages() {
-  // هنا ضع منطقك لجلب الرسائل
-  // مثال: استدعاء API تيليجرام أو قراءة من قاعدة البيانات
-  console.log('Fetching Telegram messages...');
+// تم تغيير من POST إلى GET لأننا نجلب البيانات
+export async function GET(request: NextRequest) { 
+  const supabase = createSupabaseServerClient(); 
   
-  // قم بإرجاع مصفوفة من الرسائل
-  return [
-    { id: 1, text: 'مرحباً', sender: 'user1', timestamp: new Date() },
-    { id: 2, text: 'كيف حالك؟', sender: 'user2', timestamp: new Date() },
-  ];
-}
-
-// تم تغيير POST إلى GET لحل خطأ 405
-export async function GET(request) {
   try {
-    const messages = await getTelegramMessages();
-    return NextResponse.json(messages);
-  } catch (error) {
-    console.error('Error fetching channel messages:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch messages' },
-      { status: 500 }
-    );
+    // 1. التحقق من هوية المستخدم
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error('Authentication error:', authError);
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // 2. جلب جميع رسائل القناة من قاعدة البيانات
+    // نرتب الرسائل من الأحدث إلى الأقدم لعرضها بشكل صحيح
+    const { data, error } = await supabase
+      .from('channel_messages')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching channel messages:', error);
+      return NextResponse.json({ success: false, error: 'Failed to fetch messages from database.' }, { status: 500 });
+    }
+
+    // 3. إرجاع قائمة الرسائل
+    return NextResponse.json({
+      success: true,
+      messages: data || []
+    });
+
+  } catch (error: any) {
+    console.error('An unexpected error occurred in /api/telegram/channel-messages:', error);
+    return NextResponse.json({ success: false, error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
