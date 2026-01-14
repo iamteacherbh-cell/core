@@ -3,7 +3,7 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
 import type { Language } from "@/lib/i18n"
-import { createClient } from '@/utils/supabase/browser' // استيراد عميل المتصفح
+import { createClient } from '@/lib/supabase/client' // <--- تم تصحيح المسار هنا
 import { useSupabaseUser } from '@/app/providers' // استيراد هوك المستخدم
 
 interface LanguageContextType {
