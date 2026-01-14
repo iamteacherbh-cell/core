@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/utils/supabase/server';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js'; // استيراد للعميل الإداري
 
 export async function POST(request: NextRequest) {
-  // نقلنا السطر إلى هنا، داخل الدالة
+  // إنشاء عميل Supabase للتحقق من هوية المستخدم الحالي
   const supabase = createSupabaseServerClient(); 
+  
   try {
     // 1. التحقق من هوية المستخدم (يجب أن يكون أدمن أو مستخدم مسجل دخول)
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -65,7 +67,6 @@ export async function POST(request: NextRequest) {
       // هذا يعني أن المستخدم غير موجود في قاعدة البيانات، لكن الرسالة وصلت لتليجرام
       console.error('Could not find user profile for telegram_chat_id:', telegram_chat_id);
       // لا نعيد خطأ للواجهة الأمامية لأن المهمة الأساسية (الإرسال لتليجرام) نجحت
-      // لكن يمكننا تسجيل المشكلة
     } else {
       // ثانياً، إذا وجدنا المستخدم، قم بإدراج الرسالة
       const { error: insertError } = await supabaseAdmin
@@ -99,5 +100,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
-
-
