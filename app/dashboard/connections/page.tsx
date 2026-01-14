@@ -1,11 +1,11 @@
-import { createSupabaseServerClient } from '@/utils/supabase/server'; // <--- الاستيراد الصحيح للخادم
+import { createSupabaseServerClient } from '@/lib/supabase/server'; // <--- تم تصحيح المسار
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 
 export default async function ConnectionsPage() {
-  const supabase = createSupabaseServerClient(); // <--- استخدام المساعد الصحيح
+  const supabase = createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser()
