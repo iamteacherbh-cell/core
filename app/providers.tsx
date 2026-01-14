@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
-const supabase = createClient();
+
 type SupabaseContextType = {
   user: User | null
   loading: boolean
@@ -18,6 +18,7 @@ const SupabaseContext = createContext<SupabaseContextType>({
 export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const supabase = createClient();
 
   useEffect(() => {
     // جلب الجلسة الحالية عند تحميل المكون
