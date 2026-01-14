@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/utils/supabase/server';
+import { createSupabaseServerClient } from '@/lib/supabase/server'; // <--- تم تصحيح المسار هنا
 
 export async function POST(request: NextRequest) {
   const supabase = createSupabaseServerClient(); 
