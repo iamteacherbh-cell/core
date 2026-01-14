@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { useSupabaseUser } from '@/app/providers' // === تحديث: استيراد الـ Hook الجديد
+import { useSupabaseUser } from '@/app/providers'
 import { 
   Send, 
   Bot, 
@@ -10,9 +10,10 @@ import {
   Copy,
   Check
 } from "lucide-react"
-import { createClient } from '@/lib/supabase/client' // === تغيير: استيراد العميل الجديد
+import { createClient } from '@/lib/supabase/client'
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
-// === تعديل: إنشاء العميل داخل المكون
 const supabase = createClient();
 
 interface Message {
@@ -27,8 +28,77 @@ export default function AiChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoadingResponse, setIsLoadingResponse] = useState(false)
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // جلب أو إنشاء الجلسة الحالية للمستخدم
+  useEffect(() => {
+    if (user) {
+      const getOrCreateSession = async () => {
+        const { data: session } = await supabase
+          .from("chat_sessions")
+          .select("id")
+          .eq("user_id", user.id)
+          .order("last_message_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (session) {
+          setCurrentSessionId(session.id);
+        } else {
+          const { data: newSession } = await supabase
+            .from("chat_sessions")
+            .insert({ user_id: user.id, title: "AI Chat" })
+            .select("id")
+            .single();
+          setCurrentSessionId(newSession?.id || null);
+        }
+      };
+      getOrCreateSession();
+    }
+  }, [user]);
+
+  // جلب الرسائل عند تحديد الجلسة
+  useEffect(() => {
+    if (currentSessionId) {
+      const fetchMessages = async () => {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('session_id', currentSessionId)
+          .order('created_at', { ascending: true });
+
+        if (error) console.error('Error fetching messages:', error);
+        else setMessages(data || []);
+      };
+      fetchMessages();
+    }
+  }, [currentSessionId]);
+
+  // الاستماع للرسائل الجديدة في الوقت الفعلي
+  useEffect(() => {
+    if (!currentSessionId) return;
+
+    const channel = supabase
+      .channel(`messages:${currentSessionId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `session_id=eq.${currentSessionId}` },
+        (payload) => {
+          const newMessage: Message = {
+            id: payload.new.id,
+            content: payload.new.content,
+            role: payload.new.role,
+            timestamp: payload.new.created_at,
+          };
+          setMessages(prev => [...prev, newMessage]);
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [currentSessionId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -38,17 +108,8 @@ export default function AiChatPage() {
     scrollToBottom()
   }, [messages])
 
-  // جلب سجل المحادثات عند تحميل الصفحة
-  useEffect(() => {
-    if (user) {
-      // هنا يمكنك إضافة منطق لجلب سجل المحادثات من قاعدة البيانات
-      // مثال:
-      // fetchChatHistory(user.id)
-    }
-  }, [user])
-
   const handleSendMessage = useCallback(async () => {
-    if (!input.trim() || isLoadingResponse || !user) return
+    if (!input.trim() || isLoadingResponse || !user || !currentSessionId) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -58,39 +119,38 @@ export default function AiChatPage() {
     }
 
     setMessages(prev => [...prev, userMessage])
+    const messageContent = input.trim();
     setInput("")
     setIsLoadingResponse(true)
 
     try {
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // === ملاحظة: لا حاجة لإرسال التوكن يدويًا
-          // ملف الـ API سيقرأه من الكوكيز تلقائيًا
-        },
-        body: JSON.stringify({ message: userMessage.content }),
-      })
+      // حفظ رسالة المستخدم في قاعدة البيانات
+      const { error: insertError } = await supabase.from('messages').insert({
+        session_id: currentSessionId,
+        user_id: user.id,
+        content: messageContent,
+        role: 'user',
+      });
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to send message')
-      }
+      if (insertError) throw insertError;
 
-      const data = await response.json()
+      // TODO: استدعاء الذكاء الاصطناعي هنا
+      // const response = await fetch('/api/ai/chat', { ... });
+      // const { reply } = await response.json();
+      const aiReply = "هذا رد وهمي من الذكاء الاصطناعي.";
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: data.reply,
+      // حفظ رد الذكاء الاصطناعي
+      const { error: aiError } = await supabase.from('messages').insert({
+        session_id: currentSessionId,
+        user_id: user.id,
+        content: aiReply,
         role: 'assistant',
-        timestamp: new Date(),
-      }
+      });
 
-      setMessages(prev => [...prev, assistantMessage])
+      if (aiError) throw aiError;
 
     } catch (error: any) {
       console.error("Error sending message:", error)
-      // يمكنك عرض رسالة خطأ للمستخدم هنا
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: `عذرًا، حدث خطأ: ${error.message}`,
@@ -101,7 +161,7 @@ export default function AiChatPage() {
     } finally {
       setIsLoadingResponse(false)
     }
-  }, [input, isLoadingResponse, user])
+  }, [input, isLoadingResponse, user, currentSessionId])
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text)
@@ -171,21 +231,19 @@ export default function AiChatPage() {
           }}
           className="flex gap-2"
         >
-          <input
+          <Input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="اكتب رسالتك..."
-            className="flex-1 px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isLoadingResponse}
           />
-          <button
+          <Button
             type="submit"
             disabled={!input.trim() || isLoadingResponse}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
-          </button>
+          </Button>
         </form>
       </div>
     </div>
