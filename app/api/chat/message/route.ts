@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabase/server" // <-- تصحيح اسم الدالة إلى createClient
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
   try {
-    const supabase = createClient() // <-- استخدام الدالة الصحيحة
+    const supabase = await createClient() // <-- التعديل هنا
     
     const { sessionId, userId, content } = await request.json()
 
