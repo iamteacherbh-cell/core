@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { supabase } from '@/utils/supabase/browser'
-  import { Button } from "@/components/ui/button"
+import { supabase } from '@/lib/supabase/client' // <--- تم تصحيح المسار هنا
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -501,4 +501,5 @@ export default function TelegramChatPage() {
     </div>
   )
 }
+
 
