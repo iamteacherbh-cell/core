@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server" // <--- تم تصحيح الاستيراد
 import { sendTelegramMessage } from "@/lib/telegram"
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient() // <--- استخدام الدالة الصحيحة
     
     // التحقق من المصادقة
     const { data: { user } } = await supabase.auth.getUser()
@@ -15,28 +15,22 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { message, target_user_id, action = 'forward', ai_context } = body
 
+    // التحقق من الحقول المطلوبة
     if (!message || !target_user_id) {
       return NextResponse.json({ 
         success: false,
-        error: "الرسالة ومعرف المستخدم مطلوبان" 
+        error: "الرسالة ومعرف المستخدم (target_user_id) مطلوبان" 
       }, { status: 400 })
     }
 
-    // جلب بيانات المرسل (المسؤول/المساعد الذكي)
-    const { data: senderProfile } = await supabase
-      .from("profiles")
-      .select("full_name, role")
-      .eq("id", user.id)
-      .single()
-
     // جلب بيانات المستلم
-    const { data: receiverProfile } = await supabase
+    const { data: receiverProfile, error: receiverError } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", target_user_id)
       .single()
 
-    if (!receiverProfile) {
+    if (receiverError || !receiverProfile) {
       return NextResponse.json({ 
         success: false,
         error: "المستخدم غير موجود" 
@@ -46,13 +40,17 @@ export async function POST(request: Request) {
     // التحقق من ارتباط المستخدم بـ Telegram
     if (!receiverProfile.telegram_chat_id) {
       // حفظ الرسالة كـ "معلقة" للمستخدم غير المربوط
-      await supabase.from("pending_telegram_messages").insert({
+      const { error: pendingError } = await supabase.from("pending_telegram_messages").insert({
         user_id: receiverProfile.id,
         message: message,
         sender_id: user.id,
         context: ai_context || "رسالة من المساعد الذكي",
         created_at: new Date().toISOString()
       })
+
+      if (pendingError) {
+        console.error("Failed to save pending message:", pendingError);
+      }
       
       return NextResponse.json({ 
         success: true,
@@ -73,12 +71,12 @@ export async function POST(request: Request) {
         type: 'ai_assistant_message',
         action: action,
         sender_id: user.id,
-        sender_name: senderProfile?.full_name || "المساعد الذكي"
+        sender_name: "المساعد الذكي"
       }
     })
 
     // حفظ الرسالة في قاعدة البيانات
-    const { data: savedMessage } = await supabase
+    const { data: savedMessage, error: saveError } = await supabase
       .from("messages")
       .insert({
         user_id: receiverProfile.id,
@@ -97,6 +95,11 @@ export async function POST(request: Request) {
       })
       .select()
       .single()
+
+    if (saveError) {
+        console.error("Failed to save message to database:", saveError);
+        // لا نعيد خطأ للمستخدم لأن الرسالة وصلت لتليجرام
+    }
 
     return NextResponse.json({
       success: true,
