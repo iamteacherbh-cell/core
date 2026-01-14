@@ -5,58 +5,64 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     
-    const { sessionId, message, role } = await request.json()
+    const { sessionId, userId, content } = await request.json()
 
-    if (!sessionId || !message || !role) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    if (!sessionId || !userId || !content) {
+      return NextResponse.json({ error: 'Missing required fields: sessionId, userId, content' }, { status: 400 })
     }
 
-    // حفظ رسالة المستخدم
-    const { data: savedMessage, error } = await supabase
+    // 1. حفظ رسالة المستخدم
+    const { data: userMessage, error: userError } = await supabase
       .from('messages')
       .insert({
         session_id: sessionId,
-        content: message,
-        role: role,
+        user_id: userId,
+        content: content,
+        role: 'user',
       })
       .select()
       .single()
 
-    if (error) {
-      console.error("Error saving message:", error)
-      throw error
+    if (userError) {
+      console.error("Error saving user message:", userError)
+      throw userError
     }
 
-    // هنا يمكنك إضافة منطق الذكاء الاصطناعي إذا كان role === 'user'
-    // ثم حفظ رد الذكاء الاصطناعي
-    let assistantReply = null;
-    if (role === 'user') {
-      // TODO: قم باستدعاء API الذكاء الاصطناعي هنا
-      // const aiResponse = await callYourAI(message);
-      // assistantReply = aiResponse.content;
-      assistantReply = "هذا رد وهمي من الذكاء الاصطناعي."; // رد مؤقت
-    }
-    
-    // إذا كان هناك رد من الذكاء الاصطناعي، قم بحفظه
-    if (assistantReply) {
-        const { data: assistantMessage, error: assistantError } = await supabase
-            .from('messages')
-            .insert({
-                session_id: sessionId,
-                content: assistantReply,
-                role: 'assistant',
-            })
-            .select()
-            .single();
+    // 2. تحديث وقت آخر رسالة في الجلسة
+    await supabase
+      .from('chat_sessions')
+      .update({ last_message_at: new Date().toISOString() })
+      .eq('id', sessionId)
 
-        if (assistantError) {
-            console.error("Error saving assistant message:", assistantError)
-            throw assistantError
-        }
-        return NextResponse.json({ message: assistantMessage });
+    // 3. (اختياري) استدعاء الذكاء الاصطناعي للحصول على رد
+    // TODO: قم باستدعاء API الذكاء الاصطناعي هنا
+    // const aiResponse = await callYourAI(content);
+    // const assistantReply = aiResponse.content;
+    const assistantReply = "هذا رد وهمي من الذكاء الاصطناعي."; // رد مؤقت
+
+    // 4. حفظ رد الذكاء الاصطناعي
+    const { data: assistantMessage, error: assistantError } = await supabase
+      .from('messages')
+      .insert({
+        session_id: sessionId,
+        user_id: userId, // يمكن تخصيص هذا لمعرف المستخدم المساعد
+        content: assistantReply,
+        role: 'assistant',
+      })
+      .select()
+      .single()
+
+    if (assistantError) {
+      console.error("Error saving assistant message:", assistantError)
+      throw assistantError
     }
 
-    return NextResponse.json({ message: savedMessage })
+    // 5. إرجاع الرسائل المحفوظة إلى الواجهة الأمامية
+    return NextResponse.json({ 
+      success: true,
+      userMessage: userMessage,
+      assistantMessage: assistantMessage 
+    })
 
   } catch (error: any) {
     console.error("[CHAT_MESSAGE_API] Error:", error)
