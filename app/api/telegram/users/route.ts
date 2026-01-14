@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server'; // <--- تم تصحيح المسار هنا
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServerClient(); 
+  const supabase = await createClient();
   
   try {
     // 1. التحقق من هوية المستخدم
@@ -47,3 +47,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
+
