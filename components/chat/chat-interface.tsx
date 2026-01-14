@@ -48,8 +48,8 @@ export function ChatInterface({ sessionId, userId, initialMessages, userLanguage
     setMessages((prev) => [...prev, tempUserMessage])
 
     try {
-      const response = await fetch("/api/chat/send", {
-        method: "POST",
+const response = await fetch("/api/chat/message", {
+  method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
