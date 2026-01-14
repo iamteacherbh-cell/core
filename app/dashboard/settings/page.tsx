@@ -25,7 +25,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-const supabase = createClient();
+
 
 interface Profile {
   id: string
@@ -41,7 +41,7 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  
+  const supabase = createClient();
   // حالة نموذج تحديث الملف الشخصي
   const [fullName, setFullName] = useState("")
   const [avatarUrl, setAvatarUrl] = useState("")
