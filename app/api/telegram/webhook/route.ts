@@ -22,7 +22,7 @@ export async function POST(req: Request) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("id, full_name")
-          .ilike("telegram_username", username) // case-insensitive
+          .ilike("telegram_username", username)
           .single();
 
         if (profile) {
