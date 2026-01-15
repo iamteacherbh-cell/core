@@ -1,3 +1,6 @@
+// app/api/webhook/telegram/route.ts
+export const runtime = 'edge'; // مهم جداً لـ Telegram Webhook
+
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -14,16 +17,15 @@ export async function POST(req: Request) {
 
     const ADMIN_TELEGRAM_ID = process.env.TELEGRAM_ADMIN_ID;
 
-    // ======================================================
-    // 1️⃣ رسائل المستخدم الخاصة (private user messages)
-    // ======================================================
+    // =========================
+    // 1️⃣ رسائل المستخدم الخاصة
+    // =========================
     if (message && message.text) {
       const telegramChatId = message.chat.id.toString();
       const telegramMessageId = message.message_id.toString();
       const username = message.from?.username || null;
       const text = message.text;
 
-      // الحصول على المستخدم
       const { data: profile } = await supabase
         .from("profiles")
         .select("id, full_name")
@@ -36,7 +38,6 @@ export async function POST(req: Request) {
         console.log(`✅ USER FOUND: ${profile.id}`);
         const userId = profile.id;
 
-        // جلب أو إنشاء جلسة
         let { data: session } = await supabase
           .from("chat_sessions")
           .select("id")
@@ -55,11 +56,9 @@ export async function POST(req: Request) {
             })
             .select("id")
             .single();
-
           session = newSession;
         }
 
-        // حفظ الرسالة
         await supabase.from("messages").insert({
           session_id: session.id,
           user_id: userId,
@@ -79,9 +78,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // ======================================================
-    // 2️⃣ رسائل القنوات (channel posts)
-    // ======================================================
+    // =========================
+    // 2️⃣ رسائل القنوات
+    // =========================
     if (channelPost && channelPost.text) {
       const channelChatId = channelPost.chat.id.toString();
       const channelName = channelPost.chat.title;
@@ -99,9 +98,9 @@ export async function POST(req: Request) {
         message_id: messageId,
       });
 
-      // ======================================================
-      // 2.1️⃣ الكشف عن mention @username
-      // ======================================================
+      console.log(`📢 Channel message saved from ${channelName}`);
+
+      // ======= 2.1 mention @username =======
       const mentionMatch = text.match(/@(\w+)/);
       if (mentionMatch) {
         const targetUsername = mentionMatch[1];
@@ -135,9 +134,7 @@ export async function POST(req: Request) {
         }
       }
 
-      // ======================================================
-      // 3️⃣ رد الأدمن عبر reply_to_message (الأفضل)
-      // ======================================================
+      // ======= 2.2 رد الأدمن عبر reply_to_message =======
       if (
         sender &&
         sender.id.toString() === ADMIN_TELEGRAM_ID &&
@@ -168,9 +165,7 @@ export async function POST(req: Request) {
         }
       }
 
-      // ======================================================
-      // 4️⃣ رد الأدمن عبر @username
-      // ======================================================
+      // ======= 2.3 رد الأدمن عبر @username =======
       if (sender && sender.id.toString() === ADMIN_TELEGRAM_ID) {
         const adminMatch = text.match(/@(\w+)/);
         if (adminMatch) {
