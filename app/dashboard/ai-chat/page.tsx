@@ -2,14 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useSupabaseUser } from '@/app/providers'
-import {
-  Send,
-  Bot,
-  User,
-  Loader2,
-  Copy,
-  Check
-} from "lucide-react"
+import { Send, Bot, User, Loader2, Copy, Check } from "lucide-react"
 import { createClient } from '@/lib/supabase/client'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,9 +26,7 @@ export default function AiChatPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // ===============================
   // 1️⃣ جلب أو إنشاء الجلسة
-  // ===============================
   useEffect(() => {
     if (!user) return;
 
@@ -60,7 +51,6 @@ export default function AiChatPage() {
           })
           .select("id")
           .single();
-
         setCurrentSessionId(newSession?.id || null);
       }
     };
@@ -68,9 +58,7 @@ export default function AiChatPage() {
     getOrCreateSession();
   }, [user]);
 
-  // ===============================
   // 2️⃣ جلب الرسائل
-  // ===============================
   useEffect(() => {
     if (!currentSessionId) return;
 
@@ -97,9 +85,7 @@ export default function AiChatPage() {
     fetchMessages();
   }, [currentSessionId]);
 
-  // ===============================
   // 3️⃣ Realtime
-  // ===============================
   useEffect(() => {
     if (!currentSessionId) return;
 
@@ -141,9 +127,7 @@ export default function AiChatPage() {
     scrollToBottom()
   }, [messages])
 
-  // ===============================
-  // 4️⃣ إرسال رسالة المستخدم
-  // ===============================
+  // 4️⃣ إرسال رسالة المستخدم مع mentions
   const handleSendMessage = useCallback(async () => {
     if (!input.trim() || isLoadingResponse || !user || !currentSessionId) return;
 
@@ -152,7 +136,7 @@ export default function AiChatPage() {
     setIsLoadingResponse(true);
 
     try {
-      // حفظ رسالة المستخدم
+      // حفظ رسالة المستخدم في Supabase
       await supabase.from('messages').insert({
         session_id: currentSessionId,
         user_id: user.id,
@@ -161,7 +145,7 @@ export default function AiChatPage() {
         sender_name: user.user_metadata.full_name || 'User'
       });
 
-      // جلب telegram_username من profiles
+      // جلب telegram username
       const { data: profile } = await supabase
         .from("profiles")
         .select("telegram_username")
@@ -170,23 +154,20 @@ export default function AiChatPage() {
 
       const telegramUsername = profile?.telegram_username || 'unknown';
 
-      // إرسال للقناة
-      const CHANNEL_ID = "-1003583611128";
+      // إرسال رسالة إلى قناة Telegram
+      const CHANNEL_ID = "-1003583611128"; // ضع ID القناة هنا
       await fetch('/api/telegram/send-message', {
-        method: 'POST',  // ✅ مهم جدًا
+        method: 'POST', // ✅ مهم
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chatId: CHANNEL_ID,
-          message:
-`@${telegramUsername}
-[session:${currentSessionId}]
-${messageContent}`,
+          message: `@${telegramUsername}\n[session:${currentSessionId}]\n${messageContent}`,
           isChannel: true
-        }),
+        })
       });
 
     } catch (error: any) {
-      console.error("Error:", error);
+      console.error("Error sending message:", error);
       setMessages(prev => [
         ...prev,
         {
@@ -201,9 +182,7 @@ ${messageContent}`,
     }
   }, [input, isLoadingResponse, user, currentSessionId]);
 
-  // ===============================
   // 5️⃣ نسخ الرسائل
-  // ===============================
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text)
     setCopiedId(id)
@@ -218,9 +197,7 @@ ${messageContent}`,
     )
   }
 
-  // ===============================
   // 6️⃣ واجهة الدردشة
-  // ===============================
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -233,11 +210,7 @@ ${messageContent}`,
           messages.map((message) => (
             <div
               key={message.id}
-              className={`flex items-start gap-3 ${
-                message.role === 'user'
-                  ? 'justify-end'
-                  : 'justify-start'
-              }`}
+              className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               {message.role === 'assistant' && (
                 <Bot className="h-8 w-8 rounded-full p-1 bg-primary text-primary-foreground" />
@@ -245,29 +218,19 @@ ${messageContent}`,
 
               <div
                 className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg relative group ${
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
+                  message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
                 }`}
               >
                 {message.sender_name && (
-                  <p className="text-[10px] opacity-70">
-                    {message.sender_name}
-                  </p>
+                  <p className="text-[10px] opacity-70">{message.sender_name}</p>
                 )}
-
-                <p className="text-sm whitespace-pre-wrap">
-                  {message.content}
-                </p>
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
 
                 <button
                   onClick={() => handleCopy(message.content, message.id)}
                   className="absolute -top-2 -right-2 p-1 bg-background border rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  {copiedId === message.id
-                    ? <Check className="h-3 w-3" />
-                    : <Copy className="h-3 w-3" />
-                  }
+                  {copiedId === message.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                 </button>
               </div>
 
@@ -282,9 +245,7 @@ ${messageContent}`,
           <div className="flex justify-start">
             <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <p className="text-sm text-muted-foreground">
-                يتم الإرسال...
-              </p>
+              <p className="text-sm text-muted-foreground">يتم الإرسال...</p>
             </div>
           </div>
         )}
