@@ -22,15 +22,25 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         chat_id: chatId,
         text: message,
-        parse_mode: 'HTML',
+        parse_mode: 'HTML', // أو ازالة إذا لم تحتاجي HTML
       }),
     });
 
     const data = await response.json();
 
-    if (!data.ok) {
+    if (!data.ok || !data.result?.message_id) {
       console.error("Telegram API error:", data);
-      return NextResponse.json({ error: `Failed to send message: ${data.description}` }, { status: 400 });
+      return NextResponse.json({ error: `Failed to send message: ${data.description || "unknown error"}` }, { status: 400 });
+    }
+
+    // اختياري: حفظ الرسالة للقناة في Supabase
+    if (isChannel) {
+      await supabase.from("channel_messages").insert({
+        telegram_chat_id: chatId,
+        message_text: message,
+        message_id: data.result.message_id,
+        sent_at: new Date().toISOString()
+      });
     }
 
     return NextResponse.json({ success: true, message_id: data.result.message_id });
