@@ -146,7 +146,7 @@ export default function AiChatPage() {
         await fetch('/api/telegram/send-message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chatId: CHANNEL_ID, message: `مستخدم (${user.full_name}): ${messageContent}`, isChannel: true }),
+body: JSON.stringify({ chatId: CHANNEL_ID, message: `مستخدم (${user.user_metadata.full_name}): ${messageContent}`, isChannel: true }),
         });
       } catch (channelError) {
         console.error("Failed to send user message to channel:", channelError);
