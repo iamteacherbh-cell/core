@@ -12,16 +12,18 @@ export async function POST(req: Request) {
     const message = body.message || body.edited_message;
     const channelPost = body.channel_post || body.edited_channel_post;
 
-    // ==========================
-    // 1️⃣ رسائل المستخدم الخاصة
-    // ==========================
+    const ADMIN_TELEGRAM_ID = process.env.TELEGRAM_ADMIN_ID;
+
+    // ======================================================
+    // 1️⃣ رسائل المستخدم الخاصة (private user messages)
+    // ======================================================
     if (message && message.text) {
       const telegramChatId = message.chat.id.toString();
       const telegramMessageId = message.message_id.toString();
-      const username = message.from?.username || message.chat?.username || null;
+      const username = message.from?.username || null;
       const text = message.text;
 
-      // البحث عن المستخدم
+      // الحصول على المستخدم
       const { data: profile } = await supabase
         .from("profiles")
         .select("id, full_name")
@@ -31,10 +33,10 @@ export async function POST(req: Request) {
       if (!profile) {
         console.log(`❌ USER NOT FOUND for chat_id: ${telegramChatId}`);
       } else {
-        console.log(`✅ USER FOUND: ${profile.id} (${profile.full_name})`);
+        console.log(`✅ USER FOUND: ${profile.id}`);
         const userId = profile.id;
 
-        // البحث عن جلسة أو إنشاؤها
+        // جلب أو إنشاء جلسة
         let { data: session } = await supabase
           .from("chat_sessions")
           .select("id")
@@ -58,7 +60,7 @@ export async function POST(req: Request) {
         }
 
         // حفظ الرسالة
-        const { error: insertError } = await supabase.from("messages").insert({
+        await supabase.from("messages").insert({
           session_id: session.id,
           user_id: userId,
           role: "user",
@@ -68,23 +70,18 @@ export async function POST(req: Request) {
           telegram_username: username,
         });
 
-        if (insertError) {
-          console.error("❌ ERROR SAVING MESSAGE", insertError);
-        } else {
-          console.log(`✅ MESSAGE SAVED for session ${session.id}`);
-        }
-
-        // تحديث آخر رسالة
         await supabase
           .from("chat_sessions")
           .update({ last_message_at: new Date().toISOString() })
           .eq("id", session.id);
+
+        console.log(`💬 User message saved for session ${session.id}`);
       }
     }
 
-    // ==========================
-    // 2️⃣ رسائل القنوات
-    // ==========================
+    // ======================================================
+    // 2️⃣ رسائل القنوات (channel posts)
+    // ======================================================
     if (channelPost && channelPost.text) {
       const channelChatId = channelPost.chat.id.toString();
       const channelName = channelPost.chat.title;
@@ -92,8 +89,6 @@ export async function POST(req: Request) {
       const messageId = channelPost.message_id.toString();
       const text = channelPost.text;
       const sender = channelPost.from;
-
-      console.log(`📢 CHANNEL MESSAGE from ${channelName}`);
 
       // حفظ رسالة القناة
       await supabase.from("channel_messages").insert({
@@ -104,16 +99,16 @@ export async function POST(req: Request) {
         message_id: messageId,
       });
 
-      // ===== الإشارة لمستخدم من داخل القناة =====
+      // ======================================================
+      // 2.1️⃣ الكشف عن mention @username
+      // ======================================================
       const mentionMatch = text.match(/@(\w+)/);
-
       if (mentionMatch) {
         const targetUsername = mentionMatch[1];
-        console.log(`🔔 Mention detected: @${targetUsername}`);
 
         const { data: targetProfile } = await supabase
           .from("profiles")
-          .select("id, full_name")
+          .select("id")
           .eq("telegram_username", targetUsername)
           .single();
 
@@ -132,59 +127,82 @@ export async function POST(req: Request) {
               user_id: targetProfile.id,
               role: "user",
               content: text,
-              sender_name: `${sender?.first_name || sender?.username || "Channel User"}`,
+              sender_name: sender?.first_name || sender?.username || "Channel User",
             });
 
-            console.log(`✅ Mention message saved for @${targetUsername}`);
+            console.log(`🔔 Mention saved for @${targetUsername}`);
           }
         }
       }
 
-      // ========================================
-      // 3️⃣ رد الأدمن من القناة @username reply
-      // ========================================
-      if (sender) {
-        const adminTelegramId = sender.id.toString();
-        const ADMIN_TELEGRAM_ID = "YOUR_ADMIN_TELEGRAM_ID"; // ← استبدله
+      // ======================================================
+      // 3️⃣ رد الأدمن عبر reply_to_message (الأفضل)
+      // ======================================================
+      if (
+        sender &&
+        sender.id.toString() === ADMIN_TELEGRAM_ID &&
+        channelPost.reply_to_message
+      ) {
+        const replyText = channelPost.text;
+        const originalMessageId =
+          channelPost.reply_to_message.message_id?.toString();
 
-        console.log(`ADMIN CHECK: ${adminTelegramId} vs ${ADMIN_TELEGRAM_ID}`);
+        if (replyText && originalMessageId) {
+          const { data: originalMsg } = await supabase
+            .from("messages")
+            .select("user_id, session_id")
+            .eq("telegram_message_id", originalMessageId)
+            .single();
 
-        if (adminTelegramId === ADMIN_TELEGRAM_ID) {
-          const adminMatch = text.match(/@(\w+)/);
+          if (originalMsg) {
+            await supabase.from("messages").insert({
+              session_id: originalMsg.session_id,
+              user_id: originalMsg.user_id,
+              role: "assistant",
+              content: replyText,
+              sender_name: "Admin (via Telegram)",
+            });
 
-          if (adminMatch) {
-            const targetUsername = adminMatch[1];
-            const actualReplyText = text.replace(/@\w+/, "").trim();
+            console.log("🛠 Admin reply saved via reply_to_message");
+          }
+        }
+      }
 
-            console.log(`🛠 Admin replying to @${targetUsername}: ${actualReplyText}`);
+      // ======================================================
+      // 4️⃣ رد الأدمن عبر @username
+      // ======================================================
+      if (sender && sender.id.toString() === ADMIN_TELEGRAM_ID) {
+        const adminMatch = text.match(/@(\w+)/);
+        if (adminMatch) {
+          const targetUsername = adminMatch[1];
+          const adminReply = text.replace(/@\w+/, "").trim();
 
-            if (actualReplyText.length > 0) {
-              const { data: targetProfile } = await supabase
-                .from("profiles")
+          if (adminReply.length > 0) {
+            const { data: targetProfile } = await supabase
+              .from("profiles")
+              .select("id")
+              .eq("telegram_username", targetUsername)
+              .single();
+
+            if (targetProfile) {
+              const { data: session } = await supabase
+                .from("chat_sessions")
                 .select("id")
-                .eq("telegram_username", targetUsername)
+                .eq("user_id", targetProfile.id)
+                .order("last_message_at", { ascending: false })
+                .limit(1)
                 .single();
 
-              if (targetProfile) {
-                const { data: session } = await supabase
-                  .from("chat_sessions")
-                  .select("id")
-                  .eq("user_id", targetProfile.id)
-                  .order("last_message_at", { ascending: false })
-                  .limit(1)
-                  .single();
+              if (session) {
+                await supabase.from("messages").insert({
+                  session_id: session.id,
+                  user_id: targetProfile.id,
+                  role: "assistant",
+                  content: adminReply,
+                  sender_name: "Admin (via Telegram)",
+                });
 
-                if (session) {
-                  await supabase.from("messages").insert({
-                    session_id: session.id,
-                    user_id: targetProfile.id,
-                    role: "assistant",
-                    content: actualReplyText,
-                    sender_name: "Admin (via Telegram)",
-                  });
-
-                  console.log(`✅ Admin reply saved for @${targetUsername}`);
-                }
+                console.log(`🛠 Admin direct @ reply saved for @${targetUsername}`);
               }
             }
           }
@@ -192,7 +210,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // الرد لتلغرام
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("❌ TELEGRAM WEBHOOK ERROR", err);
