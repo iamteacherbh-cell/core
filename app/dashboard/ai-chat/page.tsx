@@ -109,6 +109,7 @@ export default function AiChatPage() {
   }, [messages])
 
   const handleSendMessage = useCallback(async () => {
+     console.log("USER OBJECT:", user);
     console.log("AI-CHAT: handleSendMessage was triggered with input:", input);
 
     if (!input.trim() || isLoadingResponse || !user || !currentSessionId) {
