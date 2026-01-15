@@ -66,6 +66,11 @@ export async function POST(req: Request) {
                 telegram_chat_id: telegramChatId,
                 telegram_username: username,
             });
+            if (insertError) {
+    console.error("!!! ERROR SAVING MESSAGE !!!", insertError);
+} else {
+    console.log(`!!! MESSAGE SAVED SUCCESSFULLY !!! to session ${session.id}`);
+}
 
             // 4️⃣ تحديث وقت آخر رسالة في الجلسة
             await supabase
