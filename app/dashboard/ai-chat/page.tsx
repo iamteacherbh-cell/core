@@ -32,7 +32,7 @@ export default function AiChatPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // جلب أو إنشاء الجلسة الحالية للمستخدم (الوضع الصحيح)
+  // جلب أو إنشاء الجلسة الحالية للمستخدم
   useEffect(() => {
     if (user) {
       const getOrCreateSession = async () => {
@@ -59,7 +59,7 @@ export default function AiChatPage() {
     }
   }, [user]);
 
-  // جلب الرسائل عند تحديد الجلسة (الوضع الصحيح)
+  // جلب الرسائل عند تحديد الجلسة
   useEffect(() => {
     if (currentSessionId) {
       const fetchMessages = async () => {
@@ -76,7 +76,7 @@ export default function AiChatPage() {
     }
   }, [currentSessionId]);
 
-  // الاستماع للرسائل الجديدة في الوقت الفعلي (الوضع الصحيح)
+  // الاستماع للرسائل الجديدة في الوقت الفعلي
   useEffect(() => {
     if (!currentSessionId) return;
 
@@ -109,9 +109,7 @@ export default function AiChatPage() {
   }, [messages])
 
   const handleSendMessage = useCallback(async () => {
-    // === أضف هذا السطر للتشخيص ===
     console.log("AI-CHAT: handleSendMessage was triggered with input:", input);
-    // ====================================
 
     if (!input.trim() || isLoadingResponse || !user || !currentSessionId) {
       console.log("AI-CHAT: Returning early, conditions not met.");
@@ -131,7 +129,7 @@ export default function AiChatPage() {
     setIsLoadingResponse(true)
 
     try {
-      // حفظ رسالة المستخدم في قاعدة البيانات
+      // 1. حفظ رسالة المستخدم في قاعدة البيانات
       const { error: insertError } = await supabase.from('messages').insert({
         session_id: currentSessionId,
         user_id: user.id,
@@ -141,12 +139,22 @@ export default function AiChatPage() {
 
       if (insertError) throw insertError;
 
-      // TODO: استدعاء الذكاء الاصطناعي هنا
-      // const response = await fetch('/api/ai/chat', { ... });
-      // const { reply } = await response.json();
+      // === NEW: إرسال رسالة المستخدم إلى القناة ===
+      const CHANNEL_ID = "-1003583611128";
+      try {
+        await fetch('/api/telegram/send-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId: CHANNEL_ID, message: `مستخدم (${user.full_name}): ${messageContent}`, isChannel: true }),
+        });
+      } catch (channelError) {
+        console.error("Failed to send user message to channel:", channelError);
+      }
+
+      // 2. (TODO) استدعاء الذكاء الاصطناعي هنا
       const aiReply = "هذا رد وهمي من الذكاء الاصطناعي.";
 
-      // حفظ رد الذكاء الاصطناعي
+      // 3. حفظ رد الذكاء الاصطناعي
       const { error: aiError } = await supabase.from('messages').insert({
         session_id: currentSessionId,
         user_id: user.id,
@@ -156,10 +164,8 @@ export default function AiChatPage() {
 
       if (aiError) throw aiError;
 
-      // === NEW: إرسال رد الذكاء الاصطناعي إلى القناة ===
-      const CHANNEL_ID = "-1003583611128";
+      // 4. إرسال رد الذكاء الاصطناعي إلى القناة
       try {
-        // لا ننتظر ردًا، نرسل في الخلفية
         fetch('/api/telegram/send-message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
