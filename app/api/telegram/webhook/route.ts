@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { createServerClient } from "@/lib/supabase/server"
 
 export async function POST(req: Request) {
+    console.log("!!! WEBHOOK HIT !!! Body received:", JSON.stringify(body, null, 2));
+
   try {
     const supabase = await createServerClient()
     const body = await req.json()
