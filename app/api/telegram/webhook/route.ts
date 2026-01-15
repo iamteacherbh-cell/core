@@ -1,5 +1,4 @@
-// app/api/webhook/telegram/route.ts
-export const runtime = 'edge'; // مهم جداً لـ Telegram Webhook
+export const runtime = 'edge'; // مهم جدًا لـ Telegram Webhook
 
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
@@ -14,30 +13,31 @@ export async function POST(req: Request) {
 
     const message = body.message || body.edited_message;
     const channelPost = body.channel_post || body.edited_channel_post;
-
     const ADMIN_TELEGRAM_ID = process.env.TELEGRAM_ADMIN_ID;
 
     // =========================
     // 1️⃣ رسائل المستخدم الخاصة
     // =========================
     if (message && message.text) {
-      const telegramChatId = message.chat.id.toString();
+      const telegramUserId = message.from?.id.toString();
       const telegramMessageId = message.message_id.toString();
       const username = message.from?.username || null;
       const text = message.text;
 
+      // البحث عن المستخدم اعتمادًا على telegram_username وليس chat_id
       const { data: profile } = await supabase
         .from("profiles")
         .select("id, full_name")
-        .eq("telegram_chat_id", telegramChatId)
+        .eq("telegram_username", username)
         .single();
 
       if (!profile) {
-        console.log(`❌ USER NOT FOUND for chat_id: ${telegramChatId}`);
+        console.log(`❌ USER NOT FOUND for username: ${username}`);
       } else {
         console.log(`✅ USER FOUND: ${profile.id}`);
         const userId = profile.id;
 
+        // جلب أو إنشاء الجلسة
         let { data: session } = await supabase
           .from("chat_sessions")
           .select("id")
@@ -59,16 +59,17 @@ export async function POST(req: Request) {
           session = newSession;
         }
 
+        // حفظ الرسالة
         await supabase.from("messages").insert({
           session_id: session.id,
           user_id: userId,
           role: "user",
           content: text,
           telegram_message_id: telegramMessageId,
-          telegram_chat_id: telegramChatId,
           telegram_username: username,
         });
 
+        // تحديث آخر رسالة
         await supabase
           .from("chat_sessions")
           .update({ last_message_at: new Date().toISOString() })
@@ -84,7 +85,6 @@ export async function POST(req: Request) {
     if (channelPost && channelPost.text) {
       const channelChatId = channelPost.chat.id.toString();
       const channelName = channelPost.chat.title;
-      const channelUsername = channelPost.chat.username;
       const messageId = channelPost.message_id.toString();
       const text = channelPost.text;
       const sender = channelPost.from;
@@ -93,11 +93,9 @@ export async function POST(req: Request) {
       await supabase.from("channel_messages").insert({
         telegram_chat_id: channelChatId,
         channel_name: channelName,
-        channel_username: channelUsername,
         message_text: text,
         message_id: messageId,
       });
-
       console.log(`📢 Channel message saved from ${channelName}`);
 
       // ======= 2.1 mention @username =======
@@ -126,7 +124,7 @@ export async function POST(req: Request) {
               user_id: targetProfile.id,
               role: "user",
               content: text,
-              sender_name: sender?.first_name || sender?.username || "Channel User",
+              sender_name: sender?.username || "Channel User",
             });
 
             console.log(`🔔 Mention saved for @${targetUsername}`);
@@ -159,7 +157,6 @@ export async function POST(req: Request) {
               content: replyText,
               sender_name: "Admin (via Telegram)",
             });
-
             console.log("🛠 Admin reply saved via reply_to_message");
           }
         }
