@@ -26,10 +26,8 @@ export async function POST(req: Request) {
             .eq("telegram_chat_id", telegramChatId)
             .single();
 
-        // إذا لم يتم العثور على المستخدم، لا تفعل شيئًا وأكمل
         if (!profile) {
             console.log(`[TG] User not linked for chat_id: ${telegramChatId}`);
-            // لا نعود خطأ، فقط نكمل لمعالجة رسائل القناة
         } else {
             const userId = profile.id;
 
@@ -83,11 +81,12 @@ export async function POST(req: Request) {
         const channelUsername = channelPost.chat.username;
         const messageId = channelPost.message_id.toString();
         const text = channelPost.text;
+        const sender = channelPost.from;
 
-        console.log(`[TG] Received message from channel: ${channelName} (${channelChatId})`);
+        console.log(`[TG] Received message from channel: ${channelName}`);
 
         // 1. حفظ رسالة القناة في جدولها الخاص
-        const { error } = await supabase.from("channel_messages").insert({
+        const { error: channelError } = await supabase.from("channel_messages").insert({
             telegram_chat_id: channelChatId,
             channel_name: channelName,
             channel_username: channelUsername,
@@ -95,15 +94,63 @@ export async function POST(req: Request) {
             message_id: messageId,
         });
 
-        if (error) {
-            console.error("Error saving channel message:", error);
+        if (channelError) {
+            console.error("Error saving channel message:", channelError);
         } else {
             console.log(`[TG] Successfully saved channel message from ${channelName}`);
         }
+        
+        // 2. === معالجة أي إشارة (mention) من القناة ===
+        const mentionMatch = text.match(/@(\w+)/);
+        if (mentionMatch) {
+            const targetUsername = mentionMatch[1];
+            const originalMessageText = text;
 
-        // === NEW: معالجة ردود الأدمن من القناة ===
-        if (channelPost.from) {
-            const adminTelegramUserId = channelPost.from.id.toString();
+            console.log(`[TG] Detected mention for @${targetUsername}`);
+
+            // البحث عن ملف تعريف المستخدم المستهدف
+            const { data: targetProfile, error: profileError } = await supabase
+                .from("profiles")
+                .select("id, full_name")
+                .eq("telegram_username", targetUsername)
+                .single();
+
+            if (profileError || !targetProfile) {
+                console.error(`[TG] Could not find user with username @${targetUsername} for mention.`);
+            } else {
+                // البحث عن جلسة المستخدم المستهدف
+                const { data: session, error: sessionError } = await supabase
+                    .from("chat_sessions")
+                    .select("id")
+                    .eq("user_id", targetProfile.id)
+                    .order("last_message_at", { ascending: false })
+                    .limit(1)
+                    .single();
+
+                if (sessionError || !session) {
+                    console.error(`[TG] Could not find session for user @${targetUsername} for mention.`);
+                } else {
+                    // حفظ الرسالة التي تحتوي على الإشارة في دردشة المستخدم المستهدف
+                    const { error: saveError } = await supabase.from("messages").insert({
+                        session_id: session.id,
+                        user_id: targetProfile.id,
+                        role: 'user', // تعتبر رسالة مستخدم
+                        content: originalMessageText,
+                        sender_name: `${sender?.first_name || sender?.username || 'شخص'} (من قناة تيليجرام)`,
+                    });
+
+                    if (saveError) {
+                        console.error(`[TG] Error saving mentioned message for @${targetUsername}:`, saveError);
+                    } else {
+                        console.log(`[TG] Successfully saved mentioned message for @${targetUsername} in their chat.`);
+                    }
+                }
+            }
+        }
+
+        // 3. === معالجة ردود الأدمن من القناة (إذا كان المرسل هو الأدمن) ===
+        if (sender) {
+            const adminTelegramUserId = sender.id.toString();
             
             // !!! مهم: استبدل هذا بمعرفك الفعلي في تيليجرام (من @userinfobot) !!!
             const ADMIN_TELEGRAM_ID = 'YOUR_ADMIN_TELEGRAM_ID'; 
@@ -112,9 +159,9 @@ export async function POST(req: Request) {
                 console.log(`[TG] Received potential admin reply from channel: ${text}`);
 
                 // استخدام regex للعثور على @username
-                const mentionMatch = text.match(/@(\w+)/);
-                if (mentionMatch) {
-                    const targetUsername = mentionMatch[1];
+                const adminMentionMatch = text.match(/@(\w+)/);
+                if (adminMentionMatch) {
+                    const targetUsername = adminMentionMatch[1];
                     const actualReplyText = text.replace(/@\w+/, '').trim();
 
                     if (actualReplyText) { // التأكد من وجود نص في الرد
