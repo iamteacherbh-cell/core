@@ -163,22 +163,23 @@ export default function AiChatPage() {
 
       // إرسال للقناة (مرجع فقط – بدون DM)
       const CHANNEL_ID = "-1003583611128";
-      const telegramUsername =
-        user.user_metadata.telegram_username || 'unknown';
+     const { data: profile } = await supabase
+  .from("profiles")
+  .select("telegram_username")
+  .eq("id", user.id)
+  .single();
 
-      await fetch('/api/telegram/send-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatId: CHANNEL_ID,
-          isChannel: true,
-          message:
+const telegramUsername = profile?.telegram_username || 'unknown';
+
+await fetch('/api/telegram/send-message', {
+  body: JSON.stringify({
+    chatId: CHANNEL_ID,
+    message:
 `@${telegramUsername}
 [session:${currentSessionId}]
-
-${messageContent}`
-        }),
-      });
+${messageContent}`,
+  }),
+});
 
     } catch (error: any) {
       console.error("Error:", error);
