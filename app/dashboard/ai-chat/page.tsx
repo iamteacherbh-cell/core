@@ -33,7 +33,7 @@ export default function AiChatPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // جلب أو إنشاء الجلسة الحالية للمستخدم
+  // 1️⃣ جلب أو إنشاء الجلسة الحالية
   useEffect(() => {
     if (user) {
       const getOrCreateSession = async () => {
@@ -65,7 +65,7 @@ export default function AiChatPage() {
     }
   }, [user]);
 
-  // جلب الرسائل عند تحديد الجلسة
+  // 2️⃣ جلب الرسائل الحالية
   useEffect(() => {
     if (currentSessionId) {
       const fetchMessages = async () => {
@@ -90,7 +90,7 @@ export default function AiChatPage() {
     }
   }, [currentSessionId]);
 
-  // الاستماع للرسائل الجديدة من Supabase (Telegram أو مستخدم أو أدمن)
+  // 3️⃣ الاستماع للرسائل الجديدة في الوقت الفعلي
   useEffect(() => {
     if (!currentSessionId) return;
 
@@ -123,6 +123,7 @@ export default function AiChatPage() {
     scrollToBottom()
   }, [messages])
 
+  // 4️⃣ إرسال رسالة المستخدم
   const handleSendMessage = useCallback(async () => {
     if (!input.trim() || isLoadingResponse || !user || !currentSessionId) return;
 
@@ -130,29 +131,44 @@ export default function AiChatPage() {
     setInput("")
     setIsLoadingResponse(true)
 
-    // حفظ رسالة المستخدم في Supabase
-    await supabase.from('messages').insert({
-      session_id: currentSessionId,
-      user_id: user.id,
-      content: messageContent,
-      role: 'user',
-    });
+    try {
+      // حفظ رسالة المستخدم
+      const { error: insertError } = await supabase.from('messages').insert({
+        session_id: currentSessionId,
+        user_id: user.id,
+        role: 'user',
+        content: messageContent,
+        sender_name: user.user_metadata.full_name || 'User'
+      });
+      if (insertError) throw insertError;
 
-    // إرسال الرسالة إلى قناة Telegram
-    const CHANNEL_ID = "-1003583611128";
-    await fetch('/api/telegram/send-message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chatId: CHANNEL_ID,
-        message: `مستخدم (${user.user_metadata.full_name}): ${messageContent}`,
-        isChannel: true
-      }),
-    });
+      // إرسال الرسالة إلى قناة Telegram
+      const CHANNEL_ID = "-1003583611128";
+      await fetch('/api/telegram/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: CHANNEL_ID,
+          message: `مستخدم (${user.user_metadata.full_name || 'User'}): ${messageContent}`,
+          isChannel: true
+        }),
+      });
 
-    setIsLoadingResponse(false)
+    } catch (error: any) {
+      console.error("Error sending message:", error)
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        content: `حدث خطأ: ${error.message}`,
+        role: 'assistant',
+        timestamp: new Date(),
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsLoadingResponse(false)
+    }
   }, [input, isLoadingResponse, user, currentSessionId]);
 
+  // 5️⃣ نسخ الرسائل
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text)
     setCopiedId(id)
@@ -167,10 +183,10 @@ export default function AiChatPage() {
     )
   }
 
+  // 6️⃣ واجهة الدردشة
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <Bot className="h-12 w-12 mb-4" />
