@@ -161,25 +161,29 @@ export default function AiChatPage() {
         sender_name: user.user_metadata.full_name || 'User'
       });
 
-      // إرسال للقناة (مرجع فقط – بدون DM)
+      // جلب telegram_username من profiles
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("telegram_username")
+        .eq("id", user.id)
+        .single();
+
+      const telegramUsername = profile?.telegram_username || 'unknown';
+
+      // إرسال للقناة
       const CHANNEL_ID = "-1003583611128";
-     const { data: profile } = await supabase
-  .from("profiles")
-  .select("telegram_username")
-  .eq("id", user.id)
-  .single();
-
-const telegramUsername = profile?.telegram_username || 'unknown';
-
-await fetch('/api/telegram/send-message', {
-  body: JSON.stringify({
-    chatId: CHANNEL_ID,
-    message:
+      await fetch('/api/telegram/send-message', {
+        method: 'POST',  // ✅ مهم جدًا
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: CHANNEL_ID,
+          message:
 `@${telegramUsername}
 [session:${currentSessionId}]
 ${messageContent}`,
-  }),
-});
+          isChannel: true
+        }),
+      });
 
     } catch (error: any) {
       console.error("Error:", error);
