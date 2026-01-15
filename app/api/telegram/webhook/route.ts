@@ -16,15 +16,13 @@ export async function POST(req: Request) {
     const ADMIN_TELEGRAM_ID = process.env.TELEGRAM_ADMIN_ID;
 
     // =========================
-    // 1️⃣ رسائل المستخدم الخاصة
+    // 1️⃣ رسائل المستخدم الخاصة (DM)
     // =========================
     if (message && message.text) {
-      const telegramUserId = message.from?.id.toString();
       const telegramMessageId = message.message_id.toString();
-      const username = message.from?.username || null;
+      const username = (message.from?.username || "").toLowerCase();
       const text = message.text;
 
-      // البحث عن المستخدم اعتمادًا على telegram_username وليس chat_id
       const { data: profile } = await supabase
         .from("profiles")
         .select("id, full_name")
@@ -34,7 +32,6 @@ export async function POST(req: Request) {
       if (!profile) {
         console.log(`❌ USER NOT FOUND for username: ${username}`);
       } else {
-        console.log(`✅ USER FOUND: ${profile.id}`);
         const userId = profile.id;
 
         // جلب أو إنشاء الجلسة
@@ -75,7 +72,7 @@ export async function POST(req: Request) {
           .update({ last_message_at: new Date().toISOString() })
           .eq("id", session.id);
 
-        console.log(`💬 User message saved for session ${session.id}`);
+        console.log(`💬 User DM saved for session ${session.id}`);
       }
     }
 
@@ -85,8 +82,8 @@ export async function POST(req: Request) {
     if (channelPost && channelPost.text) {
       const channelChatId = channelPost.chat.id.toString();
       const channelName = channelPost.chat.title;
-      const messageId = channelPost.message_id.toString();
       const text = channelPost.text;
+      const messageId = channelPost.message_id.toString();
       const sender = channelPost.from;
 
       // حفظ رسالة القناة
@@ -96,13 +93,13 @@ export async function POST(req: Request) {
         message_text: text,
         message_id: messageId,
       });
+
       console.log(`📢 Channel message saved from ${channelName}`);
 
-      // ======= 2.1 mention @username =======
-      const mentionMatch = text.match(/@(\w+)/);
-      if (mentionMatch) {
-        const targetUsername = mentionMatch[1];
-
+      // ======= 2.1 mentions @username =======
+      const mentionMatches = text.matchAll(/@(\w+)/g);
+      for (const match of mentionMatches) {
+        const targetUsername = match[1].toLowerCase();
         const { data: targetProfile } = await supabase
           .from("profiles")
           .select("id")
@@ -110,7 +107,8 @@ export async function POST(req: Request) {
           .single();
 
         if (targetProfile) {
-          const { data: session } = await supabase
+          // جلب أو إنشاء session
+          let { data: session } = await supabase
             .from("chat_sessions")
             .select("id")
             .eq("user_id", targetProfile.id)
@@ -118,31 +116,38 @@ export async function POST(req: Request) {
             .limit(1)
             .single();
 
-          if (session) {
-            await supabase.from("messages").insert({
-              session_id: session.id,
-              user_id: targetProfile.id,
-              role: "user",
-              content: text,
-              sender_name: sender?.username || "Channel User",
-            });
-
-            console.log(`🔔 Mention saved for @${targetUsername}`);
+          if (!session) {
+            const { data: newSession } = await supabase
+              .from("chat_sessions")
+              .insert({
+                user_id: targetProfile.id,
+                title: "Telegram Chat",
+                last_message_at: new Date().toISOString(),
+              })
+              .select("id")
+              .single();
+            session = newSession;
           }
+
+          // إضافة الرسالة إلى جدول messages
+          await supabase.from("messages").insert({
+            session_id: session.id,
+            user_id: targetProfile.id,
+            role: "assistant",
+            content: text,
+            sender_name: sender?.username || "Channel User",
+          });
+
+          console.log(`🔔 Mention delivered to @${targetUsername}`);
         }
       }
 
-      // ======= 2.2 رد الأدمن عبر reply_to_message =======
-      if (
-        sender &&
-        sender.id.toString() === ADMIN_TELEGRAM_ID &&
-        channelPost.reply_to_message
-      ) {
-        const replyText = channelPost.text;
-        const originalMessageId =
-          channelPost.reply_to_message.message_id?.toString();
+      // ======= 2.2 Admin reply via reply_to_message =======
+      if (sender && sender.id.toString() === ADMIN_TELEGRAM_ID && channelPost.reply_to_message) {
+        const replyText = text;
+        const originalMessageId = channelPost.reply_to_message.message_id?.toString();
 
-        if (replyText && originalMessageId) {
+        if (originalMessageId) {
           const { data: originalMsg } = await supabase
             .from("messages")
             .select("user_id, session_id")
@@ -157,46 +162,57 @@ export async function POST(req: Request) {
               content: replyText,
               sender_name: "Admin (via Telegram)",
             });
-            console.log("🛠 Admin reply saved via reply_to_message");
+            console.log(`🛠 Admin reply delivered via reply_to_message`);
           }
         }
       }
 
-      // ======= 2.3 رد الأدمن عبر @username =======
+      // ======= 2.3 Admin direct @ reply =======
       if (sender && sender.id.toString() === ADMIN_TELEGRAM_ID) {
-        const adminMatch = text.match(/@(\w+)/);
-        if (adminMatch) {
-          const targetUsername = adminMatch[1];
-          const adminReply = text.replace(/@\w+/, "").trim();
+        const adminMatches = text.matchAll(/@(\w+)/g);
+        for (const match of adminMatches) {
+          const targetUsername = match[1].toLowerCase();
+          const adminReply = text.replace(/@\w+/g, "").trim();
+          if (!adminReply) continue;
 
-          if (adminReply.length > 0) {
-            const { data: targetProfile } = await supabase
-              .from("profiles")
+          const { data: targetProfile } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("telegram_username", targetUsername)
+            .single();
+
+          if (targetProfile) {
+            // جلب أو إنشاء session
+            let { data: session } = await supabase
+              .from("chat_sessions")
               .select("id")
-              .eq("telegram_username", targetUsername)
+              .eq("user_id", targetProfile.id)
+              .order("last_message_at", { ascending: false })
+              .limit(1)
               .single();
 
-            if (targetProfile) {
-              const { data: session } = await supabase
+            if (!session) {
+              const { data: newSession } = await supabase
                 .from("chat_sessions")
-                .select("id")
-                .eq("user_id", targetProfile.id)
-                .order("last_message_at", { ascending: false })
-                .limit(1)
-                .single();
-
-              if (session) {
-                await supabase.from("messages").insert({
-                  session_id: session.id,
+                .insert({
                   user_id: targetProfile.id,
-                  role: "assistant",
-                  content: adminReply,
-                  sender_name: "Admin (via Telegram)",
-                });
-
-                console.log(`🛠 Admin direct @ reply saved for @${targetUsername}`);
-              }
+                  title: "Telegram Chat",
+                  last_message_at: new Date().toISOString(),
+                })
+                .select("id")
+                .single();
+              session = newSession;
             }
+
+            await supabase.from("messages").insert({
+              session_id: session.id,
+              user_id: targetProfile.id,
+              role: "assistant",
+              content: adminReply,
+              sender_name: "Admin (via Telegram)",
+            });
+
+            console.log(`🛠 Admin direct @ reply delivered to @${targetUsername}`);
           }
         }
       }
