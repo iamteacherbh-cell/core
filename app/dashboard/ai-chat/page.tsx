@@ -31,16 +31,8 @@ export default function AiChatPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-const handleSendMessage = useCallback(async () => {
-  // === أضف هذا السطر للتشخيص ===
-  console.log("AI-CHAT: handleSendMessage was triggered with input:", input);
-  // ====================================
 
-  if (!input.trim() || isLoadingResponse || !user || !currentSessionId) {
-    console.log("AI-CHAT: Returning early, conditions not met.");
-    return;
-  }
-  // جلب أو إنشاء الجلسة الحالية للمستخدم
+  // جلب أو إنشاء الجلسة الحالية للمستخدم (الوضع الصحيح)
   useEffect(() => {
     if (user) {
       const getOrCreateSession = async () => {
@@ -67,7 +59,7 @@ const handleSendMessage = useCallback(async () => {
     }
   }, [user]);
 
-  // جلب الرسائل عند تحديد الجلسة
+  // جلب الرسائل عند تحديد الجلسة (الوضع الصحيح)
   useEffect(() => {
     if (currentSessionId) {
       const fetchMessages = async () => {
@@ -84,7 +76,7 @@ const handleSendMessage = useCallback(async () => {
     }
   }, [currentSessionId]);
 
-  // الاستماع للرسائل الجديدة في الوقت الفعلي
+  // الاستماع للرسائل الجديدة في الوقت الفعلي (الوضع الصحيح)
   useEffect(() => {
     if (!currentSessionId) return;
 
@@ -117,7 +109,14 @@ const handleSendMessage = useCallback(async () => {
   }, [messages])
 
   const handleSendMessage = useCallback(async () => {
-    if (!input.trim() || isLoadingResponse || !user || !currentSessionId) return
+    // === أضف هذا السطر للتشخيص ===
+    console.log("AI-CHAT: handleSendMessage was triggered with input:", input);
+    // ====================================
+
+    if (!input.trim() || isLoadingResponse || !user || !currentSessionId) {
+      console.log("AI-CHAT: Returning early, conditions not met.");
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
