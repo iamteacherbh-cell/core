@@ -123,7 +123,7 @@ export default function TelegramSetupPage() {
               <br />
               <br />
               <strong>Bot Token:</strong>{" "}
-              <code className="text-xs">8289329398:AAGGqvg_2cnmpmkS0-UecU1JkOFyCBeU6os</code>
+              <code className="text-xs">YOUR_BOT_TOKEN_HERE</code>
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -144,12 +144,12 @@ export default function TelegramSetupPage() {
             <li>
               {language === "ar" ? "اختبر البوت بإرسال رسالة إلى" : "Test the bot by sending a message to"}{" "}
               <a
-                href="https://t.me/icore2_bot"
+                href="https://t.me/icorelife"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary underline"
               >
-                t.me/icore2_bot
+                t.me/icorelife
               </a>
             </li>
             <li>
