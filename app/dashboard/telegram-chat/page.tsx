@@ -161,12 +161,39 @@ export default function TelegramChatPage() {
     if (!selectedProfile || !replyText.trim() || isSendingReply) return;
     setIsSendingReply(true);
     try {
+      // 1. إرسال الرسالة إلى تيليجرام
       const res = await fetch('/api/telegram/send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chatId: selectedProfile.telegram_chat_id, message: replyText.trim(), isChannel: false }),
       });
       if (!res.ok) throw new Error('Failed to send reply');
+
+      // === NEW: حفظ الرد في قاعدة البيانات ليظهر للمستخدم ===
+      // أولاً، ابحث عن session_id للمستخدم
+      const { data: session } = await supabase
+        .from('chat_sessions')
+        .select('id')
+        .eq('user_id', selectedProfile.id)
+        .order('last_message_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (session) {
+        // ثانياً، احفظ رسالة الأدمن في جدول الرسائل الموحد
+        const { error: saveError } = await supabase.from('messages').insert({
+          session_id: session.id,
+          user_id: selectedProfile.id, // رسالة الأدمن مرتبطة بالمستخدم
+          content: replyText.trim(),
+          role: 'assistant', // يعتبر ردًا من المساعد/الأدمن
+          sender_name: 'Admin',
+        });
+
+        if (saveError) {
+          console.error("Error saving admin reply to database:", saveError);
+        }
+      }
+
       setReplyText("");
     } catch (error) {
       console.error("Error sending reply:", error);
