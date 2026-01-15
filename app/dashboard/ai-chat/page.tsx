@@ -31,7 +31,15 @@ export default function AiChatPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+const handleSendMessage = useCallback(async () => {
+  // === أضف هذا السطر للتشخيص ===
+  console.log("AI-CHAT: handleSendMessage was triggered with input:", input);
+  // ====================================
 
+  if (!input.trim() || isLoadingResponse || !user || !currentSessionId) {
+    console.log("AI-CHAT: Returning early, conditions not met.");
+    return;
+  }
   // جلب أو إنشاء الجلسة الحالية للمستخدم
   useEffect(() => {
     if (user) {
