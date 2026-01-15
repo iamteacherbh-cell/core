@@ -145,23 +145,28 @@ export default function AiChatPage() {
         sender_name: user.user_metadata.full_name || 'User'
       });
 
-      // جلب telegram username
+      // جلب telegram username مع fallback
       const { data: profile } = await supabase
         .from("profiles")
-        .select("telegram_username")
+        .select("telegram_username, full_name")
         .eq("id", user.id)
         .single();
 
-      const telegramUsername = profile?.telegram_username || 'unknown';
+      let telegramIdentifier = profile?.telegram_username?.trim();
+      if (!telegramIdentifier || telegramIdentifier === 'test') {
+        telegramIdentifier = profile?.full_name
+          ?.replace(/\s+/g, "_")
+          .toLowerCase() || "unknown";
+      }
 
-      // إرسال رسالة إلى قناة Telegram
+      // إرسال الرسالة للقناة
       const CHANNEL_ID = "-1003583611128"; // ضع ID القناة هنا
       await fetch('/api/telegram/send-message', {
-        method: 'POST', // ✅ مهم
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chatId: CHANNEL_ID,
-          message: `@${telegramUsername}\n[session:${currentSessionId}]\n${messageContent}`,
+          message: `@${telegramIdentifier}\n[session:${currentSessionId}]\n${messageContent}`,
           isChannel: true
         })
       });
@@ -217,9 +222,7 @@ export default function AiChatPage() {
               )}
 
               <div
-                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg relative group ${
-                  message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                }`}
+                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg relative group ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
               >
                 {message.sender_name && (
                   <p className="text-[10px] opacity-70">{message.sender_name}</p>
