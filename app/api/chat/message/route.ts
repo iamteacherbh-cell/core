@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
+  // === أضف هذا السطر للتشخيص ===
+  console.log("API-CHAT: POST /api/chat/message was hit!");
+  // ====================================
+
   try {
     const supabase = await createClient()
 
