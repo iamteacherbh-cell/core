@@ -29,9 +29,10 @@ export async function POST(req: Request) {
             .single();
 
         if (!profile) {
-            console.log(`[TG] User not linked for chat_id: ${telegramChatId}`);
-        } else {
-            const userId = profile.id;
+    console.log(`!!! USER NOT FOUND !!! for chat_id: ${telegramChatId}`);
+} else {
+    console.log(`!!! USER FOUND !!! User ID: ${profile.id}, Full Name: ${profile.full_name}`);
+    const userId = profile.id;
 
             // 2️⃣ جلب أو إنشاء جلسة (session) للمستخدم
             let { data: session } = await supabase
