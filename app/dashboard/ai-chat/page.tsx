@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useSupabaseUser } from '@/app/providers'
-import { 
-  Send, 
-  Bot, 
-  User, 
+import {
+  Send,
+  Bot,
+  User,
   Loader2,
   Copy,
   Check
@@ -33,64 +33,73 @@ export default function AiChatPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // 1️⃣ جلب أو إنشاء الجلسة الحالية
+  // ===============================
+  // 1️⃣ جلب أو إنشاء الجلسة
+  // ===============================
   useEffect(() => {
-    if (user) {
-      const getOrCreateSession = async () => {
-        const { data: session } = await supabase
+    if (!user) return;
+
+    const getOrCreateSession = async () => {
+      const { data: session } = await supabase
+        .from("chat_sessions")
+        .select("id")
+        .eq("user_id", user.id)
+        .order("last_message_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (session) {
+        setCurrentSessionId(session.id);
+      } else {
+        const { data: newSession } = await supabase
           .from("chat_sessions")
+          .insert({
+            user_id: user.id,
+            title: "AI Chat",
+            last_message_at: new Date().toISOString()
+          })
           .select("id")
-          .eq("user_id", user.id)
-          .order("last_message_at", { ascending: false })
-          .limit(1)
           .single();
 
-        if (session) {
-          setCurrentSessionId(session.id);
-        } else {
-          const { data: newSession } = await supabase
-            .from("chat_sessions")
-            .insert({
-              user_id: user.id,
-              title: "AI Chat",
-              last_message_at: new Date().toISOString()
-            })
-            .select("id")
-            .single();
+        setCurrentSessionId(newSession?.id || null);
+      }
+    };
 
-          setCurrentSessionId(newSession?.id || null);
-        }
-      };
-      getOrCreateSession();
-    }
+    getOrCreateSession();
   }, [user]);
 
-  // 2️⃣ جلب الرسائل الحالية
+  // ===============================
+  // 2️⃣ جلب الرسائل
+  // ===============================
   useEffect(() => {
-    if (currentSessionId) {
-      const fetchMessages = async () => {
-        const { data, error } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('session_id', currentSessionId)
-          .order('created_at', { ascending: true });
+    if (!currentSessionId) return;
 
-        if (!error && data) {
-          const formatted = data.map((m) => ({
+    const fetchMessages = async () => {
+      const { data } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('session_id', currentSessionId)
+        .order('created_at', { ascending: true });
+
+      if (data) {
+        setMessages(
+          data.map((m) => ({
             id: m.id,
             content: m.content,
             role: m.role,
             sender_name: m.sender_name,
             timestamp: new Date(m.created_at)
-          }));
-          setMessages(formatted);
-        }
-      };
-      fetchMessages();
-    }
+          }))
+        );
+      }
+    };
+
+    fetchMessages();
   }, [currentSessionId]);
 
-  // 3️⃣ الاستماع للرسائل الجديدة في الوقت الفعلي
+  // ===============================
+  // 3️⃣ Realtime
+  // ===============================
   useEffect(() => {
     if (!currentSessionId) return;
 
@@ -98,21 +107,30 @@ export default function AiChatPage() {
       .channel(`messages:${currentSessionId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `session_id=eq.${currentSessionId}` },
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `session_id=eq.${currentSessionId}`
+        },
         (payload) => {
-          const newMessage: Message = {
-            id: payload.new.id,
-            content: payload.new.content,
-            role: payload.new.role,
-            sender_name: payload.new.sender_name,
-            timestamp: new Date(payload.new.created_at),
-          };
-          setMessages(prev => [...prev, newMessage]);
+          setMessages(prev => [
+            ...prev,
+            {
+              id: payload.new.id,
+              content: payload.new.content,
+              role: payload.new.role,
+              sender_name: payload.new.sender_name,
+              timestamp: new Date(payload.new.created_at)
+            }
+          ]);
         }
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [currentSessionId]);
 
   const scrollToBottom = () => {
@@ -123,52 +141,64 @@ export default function AiChatPage() {
     scrollToBottom()
   }, [messages])
 
+  // ===============================
   // 4️⃣ إرسال رسالة المستخدم
+  // ===============================
   const handleSendMessage = useCallback(async () => {
     if (!input.trim() || isLoadingResponse || !user || !currentSessionId) return;
 
     const messageContent = input.trim();
-    setInput("")
-    setIsLoadingResponse(true)
+    setInput("");
+    setIsLoadingResponse(true);
 
     try {
       // حفظ رسالة المستخدم
-      const { error: insertError } = await supabase.from('messages').insert({
+      await supabase.from('messages').insert({
         session_id: currentSessionId,
         user_id: user.id,
         role: 'user',
         content: messageContent,
         sender_name: user.user_metadata.full_name || 'User'
       });
-      if (insertError) throw insertError;
 
-      // إرسال الرسالة إلى قناة Telegram
+      // إرسال للقناة (مرجع فقط – بدون DM)
       const CHANNEL_ID = "-1003583611128";
+      const telegramUsername =
+        user.user_metadata.telegram_username || 'unknown';
+
       await fetch('/api/telegram/send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chatId: CHANNEL_ID,
-          message: `مستخدم (${user.user_metadata.full_name || 'User'}): ${messageContent}`,
-          isChannel: true
+          isChannel: true,
+          message:
+`@${telegramUsername}
+[session:${currentSessionId}]
+
+${messageContent}`
         }),
       });
 
     } catch (error: any) {
-      console.error("Error sending message:", error)
-      const errorMessage: Message = {
-        id: Date.now().toString(),
-        content: `حدث خطأ: ${error.message}`,
-        role: 'assistant',
-        timestamp: new Date(),
-      }
-      setMessages(prev => [...prev, errorMessage])
+      console.error("Error:", error);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          content: `حدث خطأ: ${error.message}`,
+          role: 'assistant',
+          timestamp: new Date()
+        }
+      ]);
     } finally {
-      setIsLoadingResponse(false)
+      setIsLoadingResponse(false);
     }
   }, [input, isLoadingResponse, user, currentSessionId]);
 
+  // ===============================
   // 5️⃣ نسخ الرسائل
+  // ===============================
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text)
     setCopiedId(id)
@@ -183,7 +213,9 @@ export default function AiChatPage() {
     )
   }
 
+  // ===============================
   // 6️⃣ واجهة الدردشة
+  // ===============================
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -196,7 +228,11 @@ export default function AiChatPage() {
           messages.map((message) => (
             <div
               key={message.id}
-              className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex items-start gap-3 ${
+                message.role === 'user'
+                  ? 'justify-end'
+                  : 'justify-start'
+              }`}
             >
               {message.role === 'assistant' && (
                 <Bot className="h-8 w-8 rounded-full p-1 bg-primary text-primary-foreground" />
@@ -210,18 +246,23 @@ export default function AiChatPage() {
                 }`}
               >
                 {message.sender_name && (
-                  <p className="text-[10px] opacity-70">{message.sender_name}</p>
+                  <p className="text-[10px] opacity-70">
+                    {message.sender_name}
+                  </p>
                 )}
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+
+                <p className="text-sm whitespace-pre-wrap">
+                  {message.content}
+                </p>
 
                 <button
                   onClick={() => handleCopy(message.content, message.id)}
                   className="absolute -top-2 -right-2 p-1 bg-background border rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Copy message"
                 >
                   {copiedId === message.id
                     ? <Check className="h-3 w-3" />
-                    : <Copy className="h-3 w-3" />}
+                    : <Copy className="h-3 w-3" />
+                  }
                 </button>
               </div>
 
@@ -234,9 +275,11 @@ export default function AiChatPage() {
 
         {isLoadingResponse && (
           <div className="flex justify-start">
-            <div className="flex items-center gap-2 max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-muted">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <p className="text-sm text-muted-foreground">يتم الإرسال...</p>
+              <p className="text-sm text-muted-foreground">
+                يتم الإرسال...
+              </p>
             </div>
           </div>
         )}
@@ -247,13 +290,12 @@ export default function AiChatPage() {
       <div className="border-t p-4">
         <form
           onSubmit={(e) => {
-            e.preventDefault()
-            handleSendMessage()
+            e.preventDefault();
+            handleSendMessage();
           }}
           className="flex gap-2"
         >
           <Input
-            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="اكتب رسالتك..."
