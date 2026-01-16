@@ -1,29 +1,49 @@
+"use client"
+
 import type React from "react"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { UserMenu } from "@/components/dashboard/user-menu"
-import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
+import { redirect, useRouter } from "next/navigation"
 import { Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
-export default async function DashboardLayout({ 
+export default function DashboardLayout({ 
   children 
 }: { 
   children: React.ReactNode 
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect("/login")
+  const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  
+  useEffect(() => {
+    const checkAuth = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        router.push("/login")
+        return
+      }
+      
+      setUser(user)
+      
+      // Get profile data
+      const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+      setProfile(profile)
+      setLoading(false)
+    }
+    
+    checkAuth()
+  }, [router])
+  
+  if (loading || !user) {
+    return <div className="flex h-screen items-center justify-center">Loading...</div>
   }
-
-  // Get profile data
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-
+  
   // Determine language direction
   const isRTL = profile?.language === "ar"
   const lang = profile?.language || "en"
@@ -37,14 +57,14 @@ export default async function DashboardLayout({
         </div>
       </aside>
 
-      {/* Mobile Sidebar - Client Component */}
-      <MobileSidebar lang={lang} />
+      {/* Mobile Sidebar */}
+      <MobileSidebar lang={lang} isRTL={isRTL} />
 
       {/* Main Content */}
       <div className="flex flex-col w-0 flex-1 overflow-hidden">
         {/* Top Header */}
         <header className="relative z-10 flex-shrink-0 flex h-16 bg-white border-b border-gray-200">
-          <MobileMenuButton />
+          <MobileMenuButton lang={lang} isRTL={isRTL} />
           
           <div className="flex-1 px-4 flex justify-between items-center">
             <div className="flex-1">
@@ -78,15 +98,11 @@ export default async function DashboardLayout({
 }
 
 // Client component for mobile menu
-function MobileSidebar({ lang }: { lang: string }) {
+function MobileSidebar({ lang, isRTL }: { lang: string, isRTL: boolean }) {
   const [isOpen, setIsOpen] = useState(false)
-  const isRTL = lang === "ar"
 
   return (
     <>
-      {/* Mobile Menu Button */}
-      <MobileMenuButton onClick={() => setIsOpen(true)} />
-      
       {/* Mobile Sidebar Overlay */}
       {isOpen && (
         <>
@@ -122,13 +138,18 @@ function MobileSidebar({ lang }: { lang: string }) {
 }
 
 // Mobile Menu Button Component
-function MobileMenuButton({ onClick }: { onClick?: () => void }) {
+function MobileMenuButton({ lang, isRTL }: { lang: string, isRTL: boolean }) {
   return (
     <Button
       variant="ghost"
       size="sm"
       className="md:hidden px-3 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-      onClick={onClick}
+      onClick={() => {
+        const sidebar = document.querySelector('.mobile-sidebar') as HTMLElement
+        if (sidebar) {
+          sidebar.style.transform = 'translateX(0)'
+        }
+      }}
     >
       <Menu className="h-6 w-6" />
       <span className="sr-only">Open sidebar</span>
