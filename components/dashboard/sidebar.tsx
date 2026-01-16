@@ -21,12 +21,18 @@ import {
 } from "lucide-react"
 import { useState, useEffect } from "react"
 
-export function DashboardSidebar() {
+interface DashboardSidebarProps {
+  isMobile?: boolean
+  onClose?: () => void
+}
+
+export function DashboardSidebar({ isMobile = false, onClose }: DashboardSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { language } = useLanguage()
   const t = useTranslation(language)
   const [isAdmin, setIsAdmin] = useState(false)
+  const isRTL = language === "ar"
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -46,6 +52,12 @@ export function DashboardSidebar() {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push("/")
+  }
+
+  const handleLinkClick = () => {
+    if (isMobile && onClose) {
+      onClose()
+    }
   }
 
   const navItems = [
@@ -100,31 +112,47 @@ export function DashboardSidebar() {
   ]
 
   return (
-    <aside className="w-64 border-r bg-card h-screen flex flex-col">
-      <div className="p-6 border-b">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">
+    <aside 
+      className={cn(
+        "bg-card h-screen flex flex-col",
+        isMobile 
+          ? "w-full max-w-xs" 
+          : "w-64 border-r",
+        isRTL && "rtl"
+      )}
+    >
+      {/* Logo Section */}
+      <div className="p-4 sm:p-6 border-b">
+        <Link 
+          href="/dashboard" 
+          className="flex items-center gap-2"
+          onClick={handleLinkClick}
+        >
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold flex-shrink-0">
             iC
           </div>
-          <span className="font-bold text-xl">icore.life</span>
+          <span className="font-bold text-lg sm:text-xl truncate">icore.life</span>
         </Link>
       </div>
 
-      <nav className="flex-1 p-4 overflow-y-auto">
-        <ul className="space-y-2">
+      {/* Navigation */}
+      <nav className="flex-1 p-3 sm:p-4 overflow-y-auto">
+        <ul className="space-y-1 sm:space-y-2">
           {navItems.map((item) => (
             <li key={item.href}>
               <Link
                 href={item.href}
+                onClick={handleLinkClick}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  "flex items-center gap-3 px-3 py-2 sm:py-2.5 rounded-lg text-sm font-medium transition-colors",
                   pathname === item.href
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  isRTL && "flex-row-reverse"
                 )}
               >
-                <item.icon className="h-5 w-5" />
-                {item.label}
+                <item.icon className="h-5 w-5 flex-shrink-0" />
+                <span className="truncate">{item.label}</span>
               </Link>
             </li>
           ))}
@@ -132,7 +160,10 @@ export function DashboardSidebar() {
           {isAdmin && (
             <>
               <li className="pt-4 pb-2">
-                <div className="px-3 text-xs font-semibold text-muted-foreground uppercase">
+                <div className={cn(
+                  "px-3 text-xs font-semibold text-muted-foreground uppercase",
+                  isRTL && "text-right"
+                )}>
                   {language === "ar" ? "إدارة" : "Admin"}
                 </div>
               </li>
@@ -140,15 +171,17 @@ export function DashboardSidebar() {
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    onClick={handleLinkClick}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                      "flex items-center gap-3 px-3 py-2 sm:py-2.5 rounded-lg text-sm font-medium transition-colors",
                       pathname === item.href
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      isRTL && "flex-row-reverse"
                     )}
                   >
-                    <item.icon className="h-5 w-5" />
-                    {item.label}
+                    <item.icon className="h-5 w-5 flex-shrink-0" />
+                    <span className="truncate">{item.label}</span>
                   </Link>
                 </li>
               ))}
@@ -157,10 +190,23 @@ export function DashboardSidebar() {
         </ul>
       </nav>
 
-      <div className="p-4 border-t">
-        <Button variant="ghost" className="w-full justify-start" onClick={handleLogout}>
-          <LogOut className="h-5 w-5 mr-3" />
-          {t.logout}
+      {/* Logout Button */}
+      <div className="p-3 sm:p-4 border-t">
+        <Button 
+          variant="ghost" 
+          className={cn(
+            "w-full justify-start gap-3",
+            isRTL && "flex-row-reverse"
+          )} 
+          onClick={() => {
+            handleLogout()
+            if (isMobile && onClose) {
+              onClose()
+            }
+          }}
+        >
+          <LogOut className="h-5 w-5 flex-shrink-0" />
+          <span className="truncate">{t.logout}</span>
         </Button>
       </div>
     </aside>
