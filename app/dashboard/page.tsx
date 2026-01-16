@@ -31,12 +31,16 @@ export default async function DashboardPage() {
       value: chatCount || 0,
       icon: MessageSquare,
       description: profile?.language === "ar" ? "محادثة نشطة" : "Active sessions",
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
     },
     {
       title: profile?.language === "ar" ? "العلاقات" : "Connections",
       value: connectionsCount || 0,
       icon: Users,
       description: profile?.language === "ar" ? "علاقة مهنية" : "Professional connections",
+      color: "text-green-600",
+      bgColor: "bg-green-50",
     },
     {
       title: profile?.language === "ar" ? "الاشتراك" : "Subscription",
@@ -55,73 +59,169 @@ export default async function DashboardPage() {
         : profile?.language === "ar"
           ? "لا يوجد اشتراك"
           : "No subscription",
+      color: subscription ? "text-purple-600" : "text-gray-600",
+      bgColor: subscription ? "bg-purple-50" : "bg-gray-50",
     },
     {
       title: profile?.language === "ar" ? "النشاط" : "Activity",
       value: "98%",
       icon: TrendingUp,
       description: profile?.language === "ar" ? "معدل النشاط" : "Activity rate",
+      color: "text-orange-600",
+      bgColor: "bg-orange-50",
     },
   ]
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 lg:p-8 min-h-screen">
-      <div className="mb-4 sm:mb-6 md:mb-8">
-        <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-2 text-balance">
-          {profile?.language === "ar" ? `مرحباً، ${profile?.full_name || ""}` : `Welcome, ${profile?.full_name || ""}`}
-        </h1>
-        <p className="text-xs sm:text-sm md:text-base text-muted-foreground">
-          {profile?.language === "ar" ? "هذه نظرة عامة على نشاطك" : "Here's an overview of your activity"}
-        </p>
+    <div className="min-h-screen bg-gray-50/50">
+      {/* Header Section */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5">
+          <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-1">
+            {profile?.language === "ar" 
+              ? `مرحباً، ${profile?.full_name || "مستخدم"}` 
+              : `Welcome, ${profile?.full_name || "User"}`
+            }
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-600">
+            {profile?.language === "ar" ? "نظرة عامة على نشاطك" : "Here's an overview of your activity"}
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, index) => (
-          <Card key={index} className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-xs sm:text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+      {/* Main Content */}
+      <div className="px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
+        {/* Stats Grid */}
+        <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-2 lg:grid-cols-4 mb-6">
+          {stats.map((stat, index) => (
+            <Card 
+              key={index} 
+              className="hover:shadow-lg transition-all duration-200 cursor-pointer border-0 shadow-sm"
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className={`p-2 rounded-lg ${stat.bgColor}`}>
+                    <stat.icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {profile?.language === "ar" ? "آخر 7 أيام" : "Last 7 days"}
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
+                  {stat.value}
+                </div>
+                <p className="text-xs sm:text-sm text-gray-600 font-medium">
+                  {stat.title}
+                </p>
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                  {stat.description}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Activity Grid */}
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
+          {/* Recent Chats Card */}
+          <Card className="shadow-sm border-0">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base sm:text-lg font-semibold text-gray-900">
+                    {profile?.language === "ar" ? "المحادثات الأخيرة" : "Recent Chats"}
+                  </CardTitle>
+                  <CardDescription className="text-xs sm:text-sm mt-1">
+                    {profile?.language === "ar" ? "آخر محادثاتك النشطة" : "Your recent active conversations"}
+                  </CardDescription>
+                </div>
+                <button className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium">
+                  {profile?.language === "ar" ? "عرض الكل" : "View all"}
+                </button>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-lg sm:text-xl md:text-2xl font-bold">{stat.value}</div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 line-clamp-1">{stat.description}</p>
+              <div className="space-y-3">
+                {/* Placeholder for empty state */}
+                <div className="text-center py-8 sm:py-12">
+                  <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                    <MessageSquare className="h-6 w-6 text-gray-400" />
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    {profile?.language === "ar" ? "لا توجد محادثات بعد" : "No chats yet"}
+                  </p>
+                  <button className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    {profile?.language === "ar" ? "ابدأ محادثة جديدة" : "Start a new chat"}
+                  </button>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
 
-      <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2 mt-3 sm:mt-4 md:mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg md:text-xl">
-              {profile?.language === "ar" ? "المحادثات الأخيرة" : "Recent Chats"}
-            </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">
-              {profile?.language === "ar" ? "آخر محادثاتك النشطة" : "Your recent active conversations"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs sm:text-sm text-muted-foreground text-center py-6 sm:py-8">
-              {profile?.language === "ar" ? "لا توجد محادثات بعد" : "No chats yet"}
-            </p>
-          </CardContent>
-        </Card>
+          {/* Connection Requests Card */}
+          <Card className="shadow-sm border-0">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base sm:text-lg font-semibold text-gray-900">
+                    {profile?.language === "ar" ? "طلبات التواصل" : "Connection Requests"}
+                  </CardTitle>
+                  <CardDescription className="text-xs sm:text-sm mt-1">
+                    {profile?.language === "ar" ? "طلبات التواصل الواردة" : "Pending connection requests"}
+                  </CardDescription>
+                </div>
+                <button className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium">
+                  {profile?.language === "ar" ? "عرض الكل" : "View all"}
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {/* Placeholder for empty state */}
+                <div className="text-center py-8 sm:py-12">
+                  <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                    <Users className="h-6 w-6 text-gray-400" />
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    {profile?.language === "ar" ? "لا توجد طلبات جديدة" : "No new requests"}
+                  </p>
+                  <button className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    {profile?.language === "ar" ? "ابحث عن مستخدمين" : "Find users"}
+                  </button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg md:text-xl">
-              {profile?.language === "ar" ? "طلبات التواصل" : "Connection Requests"}
-            </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">
-              {profile?.language === "ar" ? "طلبات التواصل الواردة" : "Pending connection requests"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs sm:text-sm text-muted-foreground text-center py-6 sm:py-8">
-              {profile?.language === "ar" ? "لا توجد طلبات جديدة" : "No new requests"}
-            </p>
-          </CardContent>
-        </Card>
+        {/* Quick Actions Section - Mobile Optimized */}
+        <div className="mt-6 lg:hidden">
+          <Card className="shadow-sm border-0">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-gray-900">
+                {profile?.language === "ar" ? "إجراءات سريعة" : "Quick Actions"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2">
+                <button className="p-3 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors">
+                  {profile?.language === "ar" ? "محادثة جديدة" : "New Chat"}
+                </button>
+                <button className="p-3 bg-green-50 text-green-600 rounded-lg text-xs font-medium hover:bg-green-100 transition-colors">
+                  {profile?.language === "ar" ? "بحث مستخدمين" : "Find Users"}
+                </button>
+                <button className="p-3 bg-purple-50 text-purple-600 rounded-lg text-xs font-medium hover:bg-purple-100 transition-colors">
+                  {profile?.language === "ar" ? "ترقية اشتراك" : "Upgrade Plan"}
+                </button>
+                <button className="p-3 bg-orange-50 text-orange-600 rounded-lg text-xs font-medium hover:bg-orange-100 transition-colors">
+                  {profile?.language === "ar" ? "الإعدادات" : "Settings"}
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
