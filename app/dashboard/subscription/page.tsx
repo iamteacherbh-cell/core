@@ -20,8 +20,6 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-
-
 // تعريف الواجهات
 interface SubscriptionPlan {
   id: string
@@ -50,10 +48,10 @@ export default function SubscriptionPage() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])
   const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null)
   const supabase = createClient();
+  
   // حالات الـ Modal للدفع
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null)
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false)
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false)
 
   // ============= جلب بيانات الخطط والاشتراك الحالي =============
   useEffect(() => {
@@ -110,42 +108,16 @@ export default function SubscriptionPage() {
     setIsCheckoutModalOpen(true)
   }
 
-  // ============= دالة تأكيد عملية الدفع (وهمية) =============
+  // ============= دالة فتح صفحة الدفع الخارجية =============
   const handleConfirmSubscription = async () => {
     if (!selectedPlan) return
-
-    setIsProcessingPayment(true)
     
-    try {
-      // TODO: استبدل هذا المنطق بمنطق الدفع الحقيقي (مثل Stripe)
-      // 1. إنشاء جلسة دفع في Stripe
-      // 2. إعادة توجيه المستخدم إلى صفحة الدفع
-      // 3. بعد نجاح الدفع، يتم تحديث قاعدة البيانات عبر Webhook من Stripe
-      
-      // --- منطق وهمي للمحاكاة ---
-      const response = await fetch('/api/subscription/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: selectedPlan.id })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "فشل في إنشاء الاشتراك")
-      }
-
-      // في الوضع الحقيقي، سيتم تحديث البيانات عبر Webhook
-      // هنا نقوم بتحديثها يدوياً للمحاكاة
-      window.location.reload() // أسهل طريقة لتحديث البيانات بعد الاشتراك الوهمي
-
-    } catch (error: any) {
-      toast.error(error.message || "حدث خطأ أثناء معالجة الدفع")
-    } finally {
-      setIsProcessingPayment(false)
-      setIsCheckoutModalOpen(false)
-      setSelectedPlan(null)
-    }
+    // فتح صفحة الدفع في نافذة جديدة
+    window.open('https://prime.icore.life/', '_blank')
+    
+    // إغلاق الـ Modal
+    setIsCheckoutModalOpen(false)
+    setSelectedPlan(null)
   }
   
   // ============= دالة إلغاء تجديد الاشتراك =============
@@ -303,9 +275,9 @@ export default function SubscriptionPage() {
                           <Button variant="outline" onClick={() => setIsCheckoutModalOpen(false)}>
                             إلغاء
                           </Button>
-                          <Button onClick={handleConfirmSubscription} disabled={isProcessingPayment}>
-                            {isProcessingPayment ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CreditCard className="h-4 w-4 mr-2" />}
-                            تأكيد والدفع
+                          <Button onClick={handleConfirmSubscription}>
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            الانتقال إلى صفحة الدفع
                           </Button>
                         </DialogFooter>
                       </DialogContent>
