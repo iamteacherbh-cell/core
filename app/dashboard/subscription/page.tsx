@@ -16,7 +16,8 @@ import {
   Zap, 
   Shield,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  ExternalLink
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -32,6 +33,7 @@ interface SubscriptionPlan {
   features_ar: string[]
   features_en: string[]
   is_active: boolean
+  payment_url?: string // رابط الدفع المخصص
 }
 
 interface UserSubscription {
@@ -40,7 +42,7 @@ interface UserSubscription {
   start_date: string
   end_date: string
   auto_renew: boolean
-  subscription_plans: SubscriptionPlan // بيانات الخطة المرتبطة
+  subscription_plans: SubscriptionPlan
 }
 
 export default function SubscriptionPage() {
@@ -89,7 +91,7 @@ export default function SubscriptionPage() {
         .eq('status', 'active')
         .single()
 
-      if (subError && subError.code !== 'PGRST116') { // PGRST116 هو خطأ "لم يتم العثور على صفوف"، وهو طبيعي إذا لم يكن هناك اشتراك
+      if (subError && subError.code !== 'PGRST116') {
         toast.error("فشل في جلب بيانات الاشتراك")
         console.error(subError)
       } else {
@@ -112,8 +114,9 @@ export default function SubscriptionPage() {
   const handleConfirmSubscription = async () => {
     if (!selectedPlan) return
     
-    // فتح صفحة الدفع في نافذة جديدة
-    window.open('https://prime.icore.life/', '_blank')
+    // فتح صفحة الدفع المخصصة للخطة
+    const paymentUrl = selectedPlan.payment_url || 'https://prime.icore.life/'
+    window.open(paymentUrl, '_blank')
     
     // إغلاق الـ Modal
     setIsCheckoutModalOpen(false)
@@ -270,6 +273,14 @@ export default function SubscriptionPage() {
                               </li>
                             ))}
                           </ul>
+                          {selectedPlan?.payment_url && (
+                            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                              <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                                <ExternalLink className="h-4 w-4" />
+                                سيتم توجيهك إلى صفحة دفع مخصصة لهذه الخطة
+                              </p>
+                            </div>
+                          )}
                         </div>
                         <DialogFooter>
                           <Button variant="outline" onClick={() => setIsCheckoutModalOpen(false)}>
