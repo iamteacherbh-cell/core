@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "app/**/*.{ts,tsx}",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "GODADDY_API_KEY": "@godaddy-api-key",
+    "GODADDY_API_SECRET": "@godaddy-api-secret"
+  }
+}
