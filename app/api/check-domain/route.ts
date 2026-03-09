@@ -1,18 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// Currency configuration
-const CURRENCIES = {
-  USD: { symbol: '$', rate: 1 },
-  SAR: { symbol: '﷼', rate: 3.75 }, // Saudi Riyal
-  EUR: { symbol: '€', rate: 0.92 },
-  GBP: { symbol: '£', rate: 0.79 },
-  AED: { symbol: 'د.إ', rate: 3.67 },
-  KWD: { symbol: 'د.ك', rate: 0.31 },
-  QAR: { symbol: '﷼', rate: 3.64 },
-  BHD: { symbol: '.د.ب', rate: 0.38 }
-} as const;
-
-type CurrencyCode = keyof typeof CURRENCIES;
+import { CURRENCIES, type CurrencyCode } from '@/lib/constants/currencies';
 
 export async function GET(request: Request) {
   try {
@@ -27,7 +14,6 @@ export async function GET(request: Request) {
       );
     }
 
-    // Your GoDaddy API credentials from environment variables
     const apiKey = process.env.GODADDY_API_KEY;
     const apiSecret = process.env.GODADDY_API_SECRET;
 
@@ -38,7 +24,6 @@ export async function GET(request: Request) {
       );
     }
 
-    // Call GoDaddy OTE API (test environment)
     const url = `https://api.ote-godaddy.com/v1/domains/available?domain=${encodeURIComponent(domain)}`;
     
     const response = await fetch(url, {
@@ -57,22 +42,16 @@ export async function GET(request: Request) {
       );
     }
 
-    // Process the response with currency conversion
     if (data.available && data.price) {
-      // Convert price from micros to actual currency
       const priceInUSD = data.price / 1000000;
-      
-      // Double the price for testing (remove in production)
       const doubledPriceUSD = priceInUSD * 2;
-      
-      // Convert to requested currency
       const convertedPrice = doubledPriceUSD * CURRENCIES[currency].rate;
       
       return NextResponse.json({
         available: true,
         domain: data.domain,
         price: {
-          value: Math.round(convertedPrice * 100) / 100, // Round to 2 decimals
+          value: Math.round(convertedPrice * 100) / 100,
           currency,
           symbol: CURRENCIES[currency].symbol,
           formatted: formatPrice(convertedPrice, currency)
@@ -100,8 +79,6 @@ export async function GET(request: Request) {
 
 function formatPrice(price: number, currency: CurrencyCode): string {
   const { symbol } = CURRENCIES[currency];
-  
-  // Arabic currencies usually show symbol on the left
   const isArabicCurrency = ['SAR', 'AED', 'KWD', 'QAR', 'BHD'].includes(currency);
   
   if (isArabicCurrency) {
