@@ -62,3 +62,28 @@ export async function GET(request: Request) {
         }
       });
     }
+
+    return NextResponse.json({
+      available: false,
+      domain: data.domain
+    });
+
+  } catch (error) {
+    console.error('Domain check error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+function formatPrice(price: number, currency: CurrencyCode): string {
+  const { symbol } = CURRENCIES[currency];
+  const isArabicCurrency = ['SAR', 'AED', 'KWD', 'QAR', 'BHD'].includes(currency);
+  
+  if (isArabicCurrency) {
+    return `${price.toFixed(2)} ${symbol}`;
+  }
+  
+  return `${symbol}${price.toFixed(2)}`;
+}
