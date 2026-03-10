@@ -2,13 +2,59 @@
 
 import { useState, useEffect } from 'react';
 import { Globe, Search, CheckCircle, XCircle } from 'lucide-react';
-import { CURRENCY_LIST, type CurrencyCode } from '@/lib/constants/currencies';
-import { translations, type Language } from '@/lib/translations/domain-checker';
+
+// Currency configuration
+const CURRENCIES = [
+  { code: 'USD', symbol: '$', name: 'US Dollar', nameAr: 'دولار أمريكي' },
+  { code: 'SAR', symbol: '﷼', name: 'Saudi Riyal', nameAr: 'ريال سعودي' },
+  { code: 'EUR', symbol: '€', name: 'Euro', nameAr: 'يورو' },
+  { code: 'GBP', symbol: '£', name: 'British Pound', nameAr: 'جنيه إسترليني' },
+  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham', nameAr: 'درهم إماراتي' },
+  { code: 'KWD', symbol: 'د.ك', name: 'Kuwaiti Dinar', nameAr: 'دينار كويتي' },
+  { code: 'QAR', symbol: '﷼', name: 'Qatari Riyal', nameAr: 'ريال قطري' },
+  { code: 'BHD', symbol: '.د.ب', name: 'Bahraini Dinar', nameAr: 'دينار بحريني' }
+] as const;
+
+type Language = 'en' | 'ar';
+type Currency = typeof CURRENCIES[number]['code'];
+
+const translations = {
+  en: {
+    title: 'Domain Price Checker',
+    subtitle: 'Check domain availability and prices in multiple currencies',
+    placeholder: 'Enter domain name (e.g., example.com)',
+    search: 'Search',
+    checking: 'Checking...',
+    available: 'Available',
+    notAvailable: 'Not Available',
+    price: 'Price',
+    currency: 'Currency',
+    error: 'Error checking domain',
+    enterDomain: 'Please enter a domain name',
+    testMode: 'Test Mode',
+    originalPrice: 'Original price'
+  },
+  ar: {
+    title: 'فحص سعر النطاق',
+    subtitle: 'تحقق من توفر النطاق والأسعار بعملات متعددة',
+    placeholder: 'أدخل اسم النطاق (مثال: example.com)',
+    search: 'بحث',
+    checking: 'جاري الفحص...',
+    available: 'متاح',
+    notAvailable: 'غير متاح',
+    price: 'السعر',
+    currency: 'العملة',
+    error: 'خطأ في فحص النطاق',
+    enterDomain: 'الرجاء إدخال اسم النطاق',
+    testMode: 'وضع التجربة',
+    originalPrice: 'السعر الأصلي'
+  }
+};
 
 export function DomainChecker() {
   const [language, setLanguage] = useState<Language>('en');
   const [domain, setDomain] = useState('');
-  const [currency, setCurrency] = useState<CurrencyCode>('USD');
+  const [currency, setCurrency] = useState<Currency>('USD');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');
@@ -96,11 +142,11 @@ export function DomainChecker() {
               </label>
               <select
                 value={currency}
-                onChange={(e) => setCurrency(e.target.value as CurrencyCode)}
+                onChange={(e) => setCurrency(e.target.value as Currency)}
                 className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-white"
                 dir={language === 'ar' ? 'rtl' : 'ltr'}
               >
-                {CURRENCY_LIST.map((curr) => (
+                {CURRENCIES.map((curr) => (
                   <option key={curr.code} value={curr.code}>
                     {curr.code} - {language === 'en' ? curr.name : curr.nameAr} ({curr.symbol})
                   </option>
