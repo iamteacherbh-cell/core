@@ -10,8 +10,3 @@ export const CURRENCIES = {
 } as const;
 
 export type CurrencyCode = keyof typeof CURRENCIES;
-
-export const CURRENCY_LIST = Object.entries(CURRENCIES).map(([code, data]) => ({
-  code: code as CurrencyCode,
-  ...data
-}));
