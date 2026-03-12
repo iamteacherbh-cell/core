@@ -30,7 +30,7 @@ export default function LoginPage() {
         
         <div className="mt-8 space-y-4">
           <button
-            onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
+            onClick={() => signIn('google', { callbackUrl: '/dashboard1' })}
             className="w-full flex items-center justify-center gap-3 bg-red-600 text-white py-3 px-4 rounded-md hover:bg-red-700 transition"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
