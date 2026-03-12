@@ -1,49 +1,46 @@
-// app/login1/page.tsx - صفحة تسجيل Google فقط
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-
-declare global {
-  interface Window {
-    google?: any;
-  }
-}
 
 export default function Login1Page() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // تحميل مكتبة Google
-  useState(() => {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    document.body.appendChild(script);
-  });
+  // ✅ تحميل مكتبة Google فقط في المتصفح
+  useEffect(() => {
+    // تأكد أن الكود يعمل فقط في المتصفح
+    if (typeof window !== 'undefined') {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      document.body.appendChild(script);
+    }
+  }, []); // يتم التنفيذ مرة واحدة فقط بعد تحميل الصفحة
 
   const handleGoogleLogin = () => {
     setLoading(true);
     
-    // تهيئة Google Sign-In
-    if (window.google) {
+    // ✅ التأكد من وجود window و google
+    if (typeof window !== 'undefined' && window.google) {
       window.google.accounts.id.initialize({
-        client_id: '230767338362-hfnru5m4neg261iqp20jc0hs7tkvu3hm.apps.googleusercontent.com',
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
         callback: handleGoogleResponse
       });
       
       window.google.accounts.id.prompt();
+    } else {
+      setError('جاري تحميل مكتبة Google...');
+      setLoading(false);
     }
   };
 
   const handleGoogleResponse = async (response: any) => {
     try {
-      // فك تشفير JWT
       const data = JSON.parse(atob(response.credential.split('.')[1]));
       
-      // إرسال البريد إلى verify-email.php
       const verifyResponse = await fetch('http://jobsboard.mywebcommunity.org/verify-email.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,9 +54,8 @@ export default function Login1Page() {
       const result = await verifyResponse.json();
       
       if (result.success) {
-        // تخزين حالة الدخول
         localStorage.setItem('user', JSON.stringify(result.user));
-        router.push('/dashboard1'); // أو dashboard حسب ما تريد
+        router.push('/dashboard1');
       } else {
         setError(result.message || 'البريد الإلكتروني غير مسجل');
         setLoading(false);
@@ -101,12 +97,6 @@ export default function Login1Page() {
         <p className="text-sm text-gray-500 text-center mt-4">
           سيتم التحقق من بريدك الإلكتروني في نظامنا
         </p>
-        
-        <div className="mt-4 text-center">
-          <a href="/login" className="text-indigo-600 hover:underline">
-            العودة لتسجيل الدخول العادي
-          </a>
-        </div>
       </div>
     </div>
   );
