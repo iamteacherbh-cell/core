@@ -47,8 +47,8 @@ export default function Login1Page() {
     try {
       const data = JSON.parse(atob(response.credential.split('.')[1]));
       
-      // ✅ استخدام HTTPS (مشكلة الـ Mixed Content)
-      const verifyResponse = await fetch('https://jobsboard.mywebcommunity.org/verify-email.php', {
+      // ✅ استخدام API Route الداخلي (بدون مشاكل Mixed Content)
+      const verifyResponse = await fetch('/api/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -61,13 +61,16 @@ export default function Login1Page() {
       const result = await verifyResponse.json();
       
       if (result.success) {
+        // تخزين بيانات المستخدم
         localStorage.setItem('user', JSON.stringify(result.user));
+        // التوجيه إلى لوحة التحكم
         router.push('/dashboard1');
       } else {
         setError('البريد الإلكتروني غير مسجل في النظام');
         setLoading(false);
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('فشل الاتصال بخادم التحقق');
       setLoading(false);
     }
