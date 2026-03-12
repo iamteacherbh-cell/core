@@ -1,13 +1,17 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Inter } from "next/font/google" // ✅ تم التغيير من Geist إلى Inter
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { LanguageProvider } from "@/contexts/language-context"
-import { SupabaseProvider } from './providers' // <-- 1. استيراد SupabaseProvider الجديد
+import { SupabaseProvider } from './providers'
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+// ✅ استخدام خط Inter المدعوم في Next.js 14
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+})
 
 export const metadata: Metadata = {
   title: "iCore - Your Professional Platform",
@@ -38,9 +42,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`font-sans antialiased`}>
-        {/* 2. لف التطبيق بالكامل داخل SupabaseProvider */}
+    <html lang="ar" dir="rtl"> {/* ✅ تغيير اللغة إلى العربية والاتجاه إلى اليمين */}
+      <body className={`${inter.variable} font-sans antialiased`}> {/* ✅ استخدام متغير الخط */}
         <SupabaseProvider>
           <LanguageProvider>{children}</LanguageProvider>
         </SupabaseProvider>
