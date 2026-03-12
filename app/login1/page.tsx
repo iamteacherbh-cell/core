@@ -8,28 +8,34 @@ export default function Login1Page() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // ✅ تحميل مكتبة Google فقط في المتصفح
   useEffect(() => {
-    // تأكد أن الكود يعمل فقط في المتصفح
     if (typeof window !== 'undefined') {
-      const script = document.createElement('script');
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      document.body.appendChild(script);
+      // تهيئة Google مرة واحدة فقط
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: '230767338362-hfnru5m4neg261iqp20jc0hs7tkvu3hm.apps.googleusercontent.com',
+          callback: handleGoogleResponse
+        });
+      } else {
+        // تحميل المكتبة إذا لم تكن موجودة
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+          window.google.accounts.id.initialize({
+            client_id: '230767338362-hfnru5m4neg261iqp20jc0hs7tkvu3hm.apps.googleusercontent.com',
+            callback: handleGoogleResponse
+          });
+        };
+        document.body.appendChild(script);
+      }
     }
-  }, []); // يتم التنفيذ مرة واحدة فقط بعد تحميل الصفحة
+  }, []);
 
   const handleGoogleLogin = () => {
     setLoading(true);
-    
-    // ✅ التأكد من وجود window و google
-    if (typeof window !== 'undefined' && window.google) {
-      window.google.accounts.id.initialize({
-        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-        callback: handleGoogleResponse
-      });
-      
+    if (window.google) {
       window.google.accounts.id.prompt();
     } else {
       setError('جاري تحميل مكتبة Google...');
@@ -41,7 +47,8 @@ export default function Login1Page() {
     try {
       const data = JSON.parse(atob(response.credential.split('.')[1]));
       
-      const verifyResponse = await fetch('http://jobsboard.mywebcommunity.org/verify-email.php', {
+      // ✅ استخدام HTTPS (مشكلة الـ Mixed Content)
+      const verifyResponse = await fetch('https://jobsboard.mywebcommunity.org/verify-email.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -57,11 +64,11 @@ export default function Login1Page() {
         localStorage.setItem('user', JSON.stringify(result.user));
         router.push('/dashboard1');
       } else {
-        setError(result.message || 'البريد الإلكتروني غير مسجل');
+        setError('البريد الإلكتروني غير مسجل في النظام');
         setLoading(false);
       }
     } catch (err) {
-      setError('فشل التحقق من البريد');
+      setError('فشل الاتصال بخادم التحقق');
       setLoading(false);
     }
   };
