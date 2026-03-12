@@ -26,8 +26,8 @@ export const authOptions: NextAuthOptions = {
   
   // صفحات مخصصة
   pages: {
-    signIn: '/login',
-    error: '/login', // صفحة الخطأ
+    signIn: '/login1',
+    error: '/login1', // صفحة الخطأ
   },
   
   // معالجات (Callbacks)
