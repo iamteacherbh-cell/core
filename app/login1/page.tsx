@@ -9,29 +9,24 @@ export default function Login1Page() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // تهيئة Google مرة واحدة فقط
-      if (window.google) {
-        window.google.accounts.id.initialize({
-          client_id: '230767338362-hfnru5m4neg261iqp20jc0hs7tkvu3hm.apps.googleusercontent.com',
-          callback: handleGoogleResponse
-        });
-      } else {
-        // تحميل المكتبة إذا لم تكن موجودة
-        const script = document.createElement('script');
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.async = true;
-        script.defer = true;
-        script.onload = () => {
-          window.google.accounts.id.initialize({
-            client_id: '230767338362-hfnru5m4neg261iqp20jc0hs7tkvu3hm.apps.googleusercontent.com',
-            callback: handleGoogleResponse
-          });
-        };
-        document.body.appendChild(script);
-      }
+    if (typeof window !== 'undefined' && !window.google) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = initializeGoogle;
+      document.body.appendChild(script);
+    } else if (window.google) {
+      initializeGoogle();
     }
   }, []);
+
+  const initializeGoogle = () => {
+    window.google.accounts.id.initialize({
+      client_id: '230767338362-hfnru5m4neg261iqp20jc0hs7tkvu3hm.apps.googleusercontent.com',
+      callback: handleGoogleResponse
+    });
+  };
 
   const handleGoogleLogin = () => {
     setLoading(true);
@@ -47,7 +42,7 @@ export default function Login1Page() {
     try {
       const data = JSON.parse(atob(response.credential.split('.')[1]));
       
-      // ✅ استخدام API Route الداخلي (بدون مشاكل Mixed Content)
+      // ✅ الاتصال بالـ API الذي سيعيد token آمن
       const verifyResponse = await fetch('/api/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -60,11 +55,10 @@ export default function Login1Page() {
       
       const result = await verifyResponse.json();
       
-    if (result.success) {
-  // ✅ التوجيه إلى login.php أولاً (سيسجل الدخول تلقائياً)
-  window.location.href = 'http://jobsboard.mywebcommunity.org/login.php?email=' + encodeURIComponent(data.email);
-}
- else {
+      if (result.success && result.redirect) {
+        // ✅ التوجيه باستخدام token وليس email مباشرة
+        window.location.href = result.redirect; // مثلاً: login.php?token=abc123...
+      } else {
         setError('البريد الإلكتروني غير مسجل في النظام');
         setLoading(false);
       }
@@ -102,10 +96,6 @@ export default function Login1Page() {
             تسجيل الدخول عبر Google
           </button>
         )}
-        
-        <p className="text-sm text-gray-500 text-center mt-4">
-          سيتم التحقق من بريدك الإلكتروني في نظامنا
-        </p>
       </div>
     </div>
   );
