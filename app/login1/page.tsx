@@ -1,43 +1,111 @@
+// app/login1/page.tsx - صفحة تسجيل Google فقط
 'use client';
 
-import { signIn } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-export default function LoginPage() {
-  const searchParams = useSearchParams();
-  const error = searchParams.get('error');
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+
+export default function Login1Page() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // تحميل مكتبة Google
+  useState(() => {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+  });
+
+  const handleGoogleLogin = () => {
+    setLoading(true);
+    
+    // تهيئة Google Sign-In
+    if (window.google) {
+      window.google.accounts.id.initialize({
+        client_id: '230767338362-hfnru5m4neg261iqp20jc0hs7tkvu3hm.apps.googleusercontent.com',
+        callback: handleGoogleResponse
+      });
+      
+      window.google.accounts.id.prompt();
+    }
+  };
+
+  const handleGoogleResponse = async (response: any) => {
+    try {
+      // فك تشفير JWT
+      const data = JSON.parse(atob(response.credential.split('.')[1]));
+      
+      // إرسال البريد إلى verify-email.php
+      const verifyResponse = await fetch('http://jobsboard.mywebcommunity.org/verify-email.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: data.email,
+          name: data.name,
+          provider: 'google'
+        })
+      });
+      
+      const result = await verifyResponse.json();
+      
+      if (result.success) {
+        // تخزين حالة الدخول
+        localStorage.setItem('user', JSON.stringify(result.user));
+        router.push('/dashboard1'); // أو dashboard حسب ما تريد
+      } else {
+        setError(result.message || 'البريد الإلكتروني غير مسجل');
+        setLoading(false);
+      }
+    } catch (err) {
+      setError('فشل التحقق من البريد');
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
-        <h2 className="text-3xl font-bold text-center">تسجيل الدخول</h2>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600">
+      <div className="bg-white p-8 rounded-lg shadow-xl w-96">
+        <h1 className="text-3xl font-bold text-center mb-8">تسجيل الدخول عبر Google</h1>
         
-        <p className="text-center text-gray-600">
-          سيتم التحقق من بريدك الإلكتروني تلقائياً
-        </p>
-
-        {error === 'not_registered' && (
-          <div className="bg-red-100 text-red-700 p-3 rounded text-center">
-            البريد الإلكتروني غير مسجل في النظام
-          </div>
-        )}
-
-        {error === 'verification_failed' && (
-          <div className="bg-red-100 text-red-700 p-3 rounded text-center">
-            فشل التحقق من البريد الإلكتروني
+        {error && (
+          <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-center">
+            {error}
           </div>
         )}
         
-        <div className="mt-8 space-y-4">
+        {loading ? (
+          <div className="text-center py-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+            <p className="mt-4">جاري التحقق من البريد الإلكتروني...</p>
+          </div>
+        ) : (
           <button
-            onClick={() => signIn('google', { callbackUrl: '/dashboard1' })}
-            className="w-full flex items-center justify-center gap-3 bg-red-600 text-white py-3 px-4 rounded-md hover:bg-red-700 transition"
+            onClick={handleGoogleLogin}
+            className="w-full flex items-center justify-center gap-3 bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/>
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/>
             </svg>
             تسجيل الدخول عبر Google
           </button>
+        )}
+        
+        <p className="text-sm text-gray-500 text-center mt-4">
+          سيتم التحقق من بريدك الإلكتروني في نظامنا
+        </p>
+        
+        <div className="mt-4 text-center">
+          <a href="/login" className="text-indigo-600 hover:underline">
+            العودة لتسجيل الدخول العادي
+          </a>
         </div>
       </div>
     </div>
