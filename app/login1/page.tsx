@@ -60,11 +60,10 @@ export default function Login1Page() {
       
       const result = await verifyResponse.json();
       
-      if (result.success) {
-        // تخزين بيانات المستخدم
-        localStorage.setItem('user', JSON.stringify(result.user));
-        // التوجيه إلى لوحة التحكم
-        router.push('/dashboard1');
+     if (result.success) {
+  localStorage.setItem('user', JSON.stringify(result.user));
+  // ✅ التوجيه إلى dashboard.php في الاستضافة الأخرى
+  window.location.href = 'http://jobsboard.mywebcommunity.org/dashboard.php';
       } else {
         setError('البريد الإلكتروني غير مسجل في النظام');
         setLoading(false);
