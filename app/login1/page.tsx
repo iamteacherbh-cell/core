@@ -61,20 +61,10 @@ export default function Login1Page() {
       const result = await verifyResponse.json();
       
     if (result.success) {
-  // تخزين بيانات المستخدم (اختياري)
-  localStorage.setItem('user', JSON.stringify(result.user));
-  
-  // ✅ إضافة معرف الجلسة إلى الرابط إذا كان موجوداً
-  const sessionId = document.cookie
-    .split('; ')
-    .find(row => row.startsWith('PHPSESSID='))
-    ?.split('=')[1];
-  
-  // التوجيه إلى dashboard.php مع معرف الجلسة
-  window.location.href = sessionId 
-    ? `http://jobsboard.mywebcommunity.org/dashboard.php?PHPSESSID=${sessionId}`
-    : 'http://jobsboard.mywebcommunity.org/dashboard.php';
-} else {
+  // ✅ التوجيه إلى login.php أولاً (سيسجل الدخول تلقائياً)
+  window.location.href = 'http://jobsboard.mywebcommunity.org/login.php?email=' + encodeURIComponent(data.email);
+}
+ else {
         setError('البريد الإلكتروني غير مسجل في النظام');
         setLoading(false);
       }
