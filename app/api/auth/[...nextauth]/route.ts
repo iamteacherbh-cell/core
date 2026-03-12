@@ -1,93 +1,80 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-// import AppleProvider from "next-auth/providers/apple"; // فك التعليق إذا أردت Apple
 
-// تعريف خيارات المصادقة
+// التحقق من وجود المتغيرات البيئية
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  throw new Error("❌ Google Client ID or Secret is missing in .env.local");
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
-    // Google Provider
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     }),
-    
-    // Apple Provider (إذا أردت تفعيله لاحقاً)
-    // AppleProvider({
-    //   clientId: process.env.APPLE_CLIENT_ID!,
-    //   clientSecret: process.env.APPLE_CLIENT_SECRET!,
-    // }),
   ],
   
-  // استراتيجية الجلسة
+  secret: process.env.NEXTAUTH_SECRET,
+  
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 يوم
   },
   
-  // صفحات مخصصة
   pages: {
-    signIn: '/login1',
-    error: '/login1', // صفحة الخطأ
+    signIn: "/login1", // توجيه إلى صفحة login1 (التي تستخدم verify-email.php)
+    error: "/login1?error=true",
   },
   
-  // معالجات (Callbacks)
   callbacks: {
-    // التحقق عند تسجيل الدخول
+    // التحقق من البريد الإلكتروني عند تسجيل الدخول
     async signIn({ user, account, profile }) {
-      console.log("محاولة تسجيل دخول:", { email: user.email, provider: account?.provider });
+      console.log("🔐 محاولة دخول عبر Google:", user.email);
       
-      // التأكد من وجود البريد الإلكتروني
       if (!user.email) {
-        console.log("لا يوجد بريد إلكتروني");
+        console.log("❌ لا يوجد بريد إلكتروني");
         return false;
       }
       
       try {
-        // الاتصال بـ Supabase للتحقق من البريد الإلكتروني
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        
-        if (!supabaseUrl || !supabaseKey) {
-          console.error("Supabase credentials missing");
-          return false;
-        }
-        
-        // البحث عن المستخدم في جدول remote_users
-        const response = await fetch(
-          `${supabaseUrl}/rest/v1/remote_users?email=eq.${encodeURIComponent(user.email)}&select=id,email,full_name`,
-          {
-            headers: {
-              'apikey': supabaseKey,
-              'Authorization': `Bearer ${supabaseKey}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-        
+        // الاتصال بـ verify-email.php للتحقق من وجود البريد
+        const response = await fetch('http://jobsboard.mywebcommunity.org/verify-email.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: user.email,
+            name: user.name,
+            provider: 'google'
+          }),
+          // مهم: للاتصال بخادم آخر
+          cache: 'no-cache',
+        });
+
         if (!response.ok) {
-          console.error("Supabase response error:", await response.text());
+          console.log("❌ فشل الاتصال بـ verify-email.php");
           return false;
         }
+
+        const data = await response.json();
         
-        const users = await response.json();
-        console.log("نتيجة البحث:", users);
-        
-        // التحقق من وجود المستخدم
-        if (users && users.length > 0) {
-          console.log("✅ البريد الإلكتروني موجود - سماح بالدخول");
+        if (data.success) {
+          console.log("✅ البريد موجود - سماح بالدخول");
+          // تخزين بيانات المستخدم إضافية إذا أردت
           return true;
         } else {
-          console.log("❌ البريد الإلكتروني غير موجود - رفض الدخول");
+          console.log("❌ البريد غير موجود - رفض الدخول");
           return false;
         }
         
       } catch (error) {
-        console.error("خطأ في التحقق من البريد:", error);
+        console.error("❌ خطأ في التحقق:", error);
         return false;
       }
     },
     
-    // إضافة بيانات إضافية للـ JWT
+    // إضافة بيانات للـ JWT
     async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
@@ -95,6 +82,7 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name;
       }
       if (account) {
+        token.accessToken = account.access_token;
         token.provider = account.provider;
       }
       return token;
@@ -102,7 +90,7 @@ export const authOptions: NextAuthOptions = {
     
     // إضافة بيانات للجلسة
     async session({ session, token }) {
-      if (session.user) {
+      if (session?.user) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
         session.user.name = token.name as string;
@@ -110,36 +98,30 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     
-    // إعادة توجيه بعد تسجيل الدخول
+    // التوجيه بعد تسجيل الدخول
     async redirect({ url, baseUrl }) {
-      // إذا كان هناك خطأ في التحقق
-      if (url.includes('error=EmailNotRegistered')) {
-        return `${baseUrl}/login?error=not_registered`;
+      // إذا كان هناك خطأ
+      if (url.includes('error')) {
+        return `${baseUrl}/login1?error=access_denied`;
       }
-      // الصفحة الافتراضية بعد تسجيل الدخول
-      return `${baseUrl}/dashboard`;
+      // توجيه إلى dashboard1 الخاص بـ login1
+      return `${baseUrl}/dashboard1`;
     },
   },
   
-  // أحداث إضافية
+  // أحداث للتتبع
   events: {
     async signIn(message) {
-      console.log("مستخدم سجل دخول:", message);
+      console.log("✅ مستخدم سجل دخول:", message.user?.email);
     },
     async signOut(message) {
-      console.log("مستخدم سجل خروج:", message);
+      console.log("👋 مستخدم سجل خروج:", message.session?.user?.email);
     },
   },
   
-  // تفعيل التصحيح (Debug) - عطلها في الإنتاج
+  // تفعيل التصحيح في التطوير فقط
   debug: process.env.NODE_ENV === 'development',
-  
-  // مفتاح سري إضافي
-  secret: process.env.NEXTAUTH_SECRET,
 };
 
-// إنشاء المعالج
 const handler = NextAuth(authOptions);
-
-// تصدير المعالج لطرق GET و POST
 export { handler as GET, handler as POST };
