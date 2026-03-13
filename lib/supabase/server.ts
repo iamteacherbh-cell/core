@@ -1,7 +1,9 @@
+// utils/supabase/server.ts
+
 import { createServerClient as createSupabaseServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-// الدالة الأساسية التي نستخدمها في صفحة dashboard
+// هذه هي الدالة الوحيدة التي يجب تصديرها واستخدامها
 export async function createClient() {
   const cookieStore = await cookies()
 
@@ -19,13 +21,11 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             )
           } catch {
-            // يتم تجاهل الخطأ إذا كان في Server Component
+            // The `setAll` method was not called from a Server Component.
+            // This can be ignored if you're not using Server Components.
           }
         },
       },
     }
   )
 }
-
-// ✅ تصدير createServerClient مباشرة للتوافق مع الكود القديم
-export const createServerClient = createSupabaseServerClient
