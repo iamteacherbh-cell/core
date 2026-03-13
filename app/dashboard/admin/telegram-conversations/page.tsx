@@ -1,9 +1,10 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from '@/lib/supabase/server'
 import { redirect } from "next/navigation"
 import { TelegramConversationsManager } from "@/components/admin/telegram-conversations-manager"
 
 export default async function TelegramConversationsPage() {
-  const supabase = await createServerClient()
+  const supabase = await createClient()
+
 
   const {
     data: { user },
