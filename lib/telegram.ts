@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8289329398:AAGGqvg_2cnmpmkS0-UecU1JkOFyCBeU6os"
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`
@@ -42,8 +42,8 @@ export async function sendTelegramMessage({
       throw new Error(result.description || `HTTP ${response.status}`)
     }
 
-    // حفظ الرسالة في قاعدة البيانات
-    const supabase = await createServerClient()
+    // حفظ الرسالة في قاعدة البيانات - استخدام createClient بدلاً من createServerClient
+    const supabase = await createClient()
     
     const messageData: any = {
       telegram_chat_id: chat_id.toString(),
@@ -77,7 +77,7 @@ export async function sendTelegramMessage({
     console.error("[TELEGRAM] Failed to send message:", error)
     
     try {
-      const supabase = await createServerClient()
+      const supabase = await createClient()
       
       const errorData: any = {
         telegram_chat_id: chat_id.toString(),
@@ -123,7 +123,7 @@ export async function sendTelegramMessage({
           console.log("[TELEGRAM] Message sent successfully without Markdown")
           
           // حفظ في قاعدة البيانات
-          const supabase = await createServerClient()
+          const supabase = await createClient()
           await supabase.from("telegram_messages").insert({
             telegram_chat_id: chat_id.toString(),
             telegram_user_id: user_id?.toString(),
@@ -403,7 +403,7 @@ export async function sendTelegramPhoto({
     }
 
     // حفظ في قاعدة البيانات
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     await supabase.from("telegram_messages").insert({
       telegram_chat_id: chat_id.toString(),
       telegram_user_id: user_id?.toString(),
@@ -465,7 +465,7 @@ export async function sendTelegramDocument({
     }
 
     // حفظ في قاعدة البيانات
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     await supabase.from("telegram_messages").insert({
       telegram_chat_id: chat_id.toString(),
       telegram_user_id: user_id?.toString(),
