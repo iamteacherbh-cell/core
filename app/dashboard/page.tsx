@@ -1,35 +1,29 @@
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MessageSquare, Users, CreditCard, TrendingUp } from "lucide-react"
-import { redirect } from "next/navigation"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
-  
-  // 1. التحقق من وجود المستخدم أولاً
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  // 2. إذا لا يوجد مستخدم، حول إلى صفحة login فوراً
-  if (!user) {
-    redirect("/login")
-  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  // 3. الآن نحن متأكدون أن user موجود ✅
-  // نجلب جميع البيانات بالتوازي (أسرع)
-  const [profileResult, subscriptionResult, chatCountResult, connectionsCountResult] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).single(),
-    supabase.from("subscriptions").select("*, subscription_plans(*)").eq("user_id", user.id).eq("status", "active").maybeSingle(),
-    supabase.from("chat_sessions").select("*", { count: "exact", head: true }).eq("user_id", user.id),
-    supabase.from("connections").select("*", { count: "exact", head: true })
-      .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`)
-      .eq("status", "accepted")
-  ])
-
-  // استخراج البيانات مع التعامل مع الأخطاء
-  const profile = profileResult.data
-  const subscription = subscriptionResult.data
-  const chatCount = chatCountResult.count || 0
-  const connectionsCount = connectionsCountResult.count || 0
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user!.id).single()
+  const { data: subscription } = await supabase
+    .from("subscriptions")
+    .select("*, subscription_plans(*)")
+    .eq("user_id", user!.id)
+    .eq("status", "active")
+    .single()
+  const { count: chatCount } = await supabase
+    .from("chat_sessions")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user!.id)
+  const { count: connectionsCount } = await supabase
+    .from("connections")
+    .select("*", { count: "exact", head: true })
+    .or(`requester_id.eq.${user!.id},receiver_id.eq.${user!.id}`)
+    .eq("status", "accepted")
 
   const stats = [
     {
@@ -60,8 +54,8 @@ export default async function DashboardPage() {
       icon: CreditCard,
       description: subscription
         ? profile?.language === "ar"
-          ? subscription.subscription_plans?.name_ar || "مميز"
-          : subscription.subscription_plans?.name_en || "Premium"
+          ? subscription.subscription_plans.name_ar
+          : subscription.subscription_plans.name_en
         : profile?.language === "ar"
           ? "لا يوجد اشتراك"
           : "No subscription",
