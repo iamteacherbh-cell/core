@@ -1,18 +1,23 @@
 import { createClient } from '@/lib/supabase/server'
 
-
 export async function GET(request: Request) {
-  const supabase = await createClient()
+  try {
+    const supabase = await createClient()
 
     // Check if user is admin
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    
     if (!user) {
       return Response.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single()
 
     if (profile?.role !== "admin") {
       return Response.json({ error: "Forbidden" }, { status: 403 })
@@ -27,8 +32,12 @@ export async function GET(request: Request) {
     if (error) throw error
 
     return Response.json({ messages })
+    
   } catch (error) {
     console.error("[v0] Error fetching telegram messages:", error)
-    return Response.json({ error: "Internal server error" }, { status: 500 })
+    return Response.json(
+      { error: "Internal server error" }, 
+      { status: 500 }
+    )
   }
 }
