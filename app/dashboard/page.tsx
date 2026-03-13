@@ -1,21 +1,22 @@
 import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MessageSquare, Users, CreditCard, TrendingUp } from "lucide-react"
-import { redirect } from "next/navigation"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   
-  // 1. التحقق من وجود المستخدم أولاً
-  const { data: { user } } = await supabase.auth.getUser()
+  // 1. استخدام getUser() بدلاً من getSession() - هذا هو المفتاح!
+  const { data: { user }, error } = await supabase.auth.getUser()
   
-  // 2. إذا لا يوجد مستخدم، حول إلى صفحة login فوراً
-  if (!user) {
+  // 2. إذا كان هناك خطأ أو لا يوجد مستخدم، نعيد التوجيه
+  if (error || !user) {
+    console.error("Auth error:", error)
     redirect("/login")
   }
 
   // 3. الآن نحن متأكدون أن user موجود ✅
-  // نجلب جميع البيانات بالتوازي (أسرع)
+  // نجلب جميع البيانات بالتوازي
   const [profileResult, subscriptionResult, chatCountResult, connectionsCountResult] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).single(),
     supabase.from("subscriptions").select("*, subscription_plans(*)").eq("user_id", user.id).eq("status", "active").maybeSingle(),
