@@ -1,8 +1,8 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from '@/lib/supabase/server'
 
-export async function GET(req: Request) {
-  try {
-    const supabase = await createServerClient()
+
+export async function GET(request: Request) {
+  const supabase = await createClient()
 
     // Check if user is admin
     const {
