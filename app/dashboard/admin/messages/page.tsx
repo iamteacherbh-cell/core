@@ -1,9 +1,9 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from '@/lib/supabase/server'
 import { redirect } from "next/navigation"
 import { TelegramMessagesTable } from "@/components/admin/telegram-messages-table"
 
-export default async function AdminMessagesPage() {
-  const supabase = await createServerClient()
+export default async function MessagesPage() {
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
