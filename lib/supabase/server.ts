@@ -1,24 +1,26 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createServerClient as createSupabaseServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
 
-export async function createClient() {
+export async function createServerClient() {
   const cookieStore = await cookies()
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  return createSupabaseServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!, 
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, 
     {
+      // هذا هو الجزء المهم
+      db: {
+        schema: 'public'
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll()
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
           } catch {
-            // يتم تجاهل الخطأ إذا كان في Server Component
+            // Handle cookie errors silently
           }
         },
       },
@@ -26,5 +28,6 @@ export async function createClient() {
   )
 }
 
-// ✅ هذا السطر هو المفتاح! نصدر الدالة بالاسم الذي تبحث عنه بقية المشروع
-export { createServerClient }
+export async function createClient() {
+  return createServerClient()
+}
