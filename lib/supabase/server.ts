@@ -25,3 +25,6 @@ export async function createClient() {
     }
   )
 }
+
+// ✅ هذا السطر هو المفتاح! نصدر الدالة بالاسم الذي تبحث عنه بقية المشروع
+export { createServerClient }
