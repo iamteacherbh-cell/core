@@ -24,25 +24,35 @@ export function LoginForm() {
   const t = useTranslation(language)
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
+  e.preventDefault()
+  setLoading(true)
+  setError(null)
 
+  try {
     const supabase = createClient()
-
-    const { error } = await supabase.auth.signInWithPassword({
+    
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
     if (error) {
+      console.error("Login error:", error)
       setError(error.message)
       setLoading(false)
-    } else {
+    } else if (data?.user) {
+      console.log("Login successful, redirecting...")
       router.push("/dashboard")
-      console.log("Login successful, redirecting to dashboard")
+    } else {
+      setError("Unknown error occurred")
+      setLoading(false)
     }
+  } catch (err: any) {
+    console.error("Exception:", err)
+    setError(err.message || "Network error")
+    setLoading(false)
   }
+}
 
   return (
     <Card className="w-full max-w-md">
