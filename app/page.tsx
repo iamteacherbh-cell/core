@@ -1,15 +1,18 @@
-export default function HomePage() {
+import { Header } from "@/components/layout/header";
+import { Hero } from "@/components/sections/hero";
+import { DomainChecker } from "@/components/sections/domain-checker";
+import { Features } from "@/components/sections/features";
+import { Footer } from "@/components/sections/footer";
+
+export default function Home() {
   return (
-    <div style={{ width: '100%', height: '100vh', overflow: 'hidden' }}>
-      <iframe 
-        src="https://v0-project-debugging-virid.vercel.app"
-        style={{
-          width: '100%',
-          height: '100%',
-          border: 'none',
-        }}
-        title="iCore Platform"
-      />
+    <div className="min-h-screen">
+      <Header />
+      <main>
+        <Hero />
+        <Features />
+      </main>
+      <Footer />
     </div>
-  )
+  );
 }
