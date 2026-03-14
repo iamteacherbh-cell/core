@@ -1,9 +1,9 @@
-import { createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createClient();
     const { chatId, message, isChannel } = await req.json();
 
     if (!chatId || !message) {
