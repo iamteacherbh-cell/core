@@ -1,9 +1,9 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { sendTelegramMessage } from "@/lib/telegram"
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient()
 
     // Check if user is admin
     const {
