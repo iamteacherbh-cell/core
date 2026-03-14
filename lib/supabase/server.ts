@@ -1,11 +1,10 @@
-import { createClient as createSupabaseServerClient } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-// هذه هي الدالة الوحيدة التي يجب تصديرها واستخدامها
 export async function createClient() {
   const cookieStore = await cookies()
 
-  return createSupabaseServerClient(
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -19,8 +18,7 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             )
           } catch {
-            // The `setAll` method was not called from a Server Component.
-            // This can be ignored if you're not using Server Components.
+            // تجاهل الخطأ في Server Components
           }
         },
       },
