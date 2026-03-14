@@ -1,18 +1,5 @@
-import { Header } from "@/components/layout/header";
-import { Hero } from "@/components/sections/hero";
-import { DomainChecker } from "@/components/sections/domain-checker";
-import { Features } from "@/components/sections/features";
-import { Footer } from "@/components/sections/footer";
+import { redirect } from 'next/navigation'
 
-export default function Home() {
-  return (
-    <div className="min-h-screen">
-      <Header />
-      <main>
-        <Hero />
-        <Features />
-      </main>
-      <Footer />
-    </div>
-  );
+export default function HomePage() {
+  redirect('https://home.icore.life')
 }
