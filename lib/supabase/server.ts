@@ -1,4 +1,4 @@
-import { createServerClient as createSupabaseServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 // هذه هي الدالة الوحيدة التي يجب تصديرها واستخدامها
