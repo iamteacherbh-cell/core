@@ -40,6 +40,7 @@ export function LoginForm() {
       setLoading(false)
     } else {
       router.push("/dashboard")
+      console.log("Login successful, redirecting to dashboard")
     }
   }
 
