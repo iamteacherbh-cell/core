@@ -42,7 +42,10 @@ export function LoginForm() {
       setLoading(false)
     } else if (data?.user) {
       console.log("Login successful, redirecting...")
-      router.push("/dashboard")
+     setTimeout(() => {
+  router.push("/dashboard")
+}, 500)
+
     } else {
       setError("Unknown error occurred")
       setLoading(false)
