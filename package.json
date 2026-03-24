@@ -77,4 +77,7 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }
+  "scripts": {
+  "start": "node --no-deprecation server.js"
+}
 }
