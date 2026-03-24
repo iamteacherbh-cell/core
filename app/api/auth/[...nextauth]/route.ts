@@ -54,17 +54,17 @@ export const authOptions: NextAuthOptions = {
 
       try {
         // 🔥 إرسال البيانات إلى proxy للتحقق في jobsboard
-        const res = await fetch(`${process.env.NEXTAUTH_URL}/api/proxy-verify`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: user.email,
-            name: user.name,
-            provider: provider === "azure-ad" ? "microsoft" : provider,
-          }),
-        });
+       const res = await fetch(`${process.env.NEXTAUTH_URL}/api/proxy-verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+        email: user.email,
+        name: user.name,
+        provider: provider === "azure-ad" ? "microsoft" : provider,
+    }),
+});
 
-        const data = await res.json();
+const data = await res.json();
 
         if (!data.success) {
           console.log("❌ Verify failed:", data.message);
