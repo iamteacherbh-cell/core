@@ -6,25 +6,31 @@ import Link from 'next/link';
 
 interface LogoutClientProps {
   userEmail?: string | null;
+  userName?: string | null;
 }
 
-export default function LogoutClient({ userEmail }: LogoutClientProps) {
+export default function LogoutClient({ userEmail, userName }: LogoutClientProps) {
   const [message, setMessage] = useState('جاري تسجيل الخروج...');
   const [countdown, setCountdown] = useState(3);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const performLogout = async () => {
       try {
-        // 1. تسجيل الخروج من NextAuth
-        await signOut({ redirect: false });
+        // تسجيل الخروج من NextAuth
+        await signOut({ 
+          redirect: false,
+          callbackUrl: '/'
+        });
         
         setMessage('تم تسجيل الخروج بنجاح. جاري التوجيه...');
         
-        // 2. عد تنازلي قبل التوجيه
+        // عد تنازلي قبل التوجيه إلى PHP
         const interval = setInterval(() => {
           setCountdown((prev) => {
             if (prev <= 1) {
               clearInterval(interval);
+              // التوجيه إلى صفحة تسجيل الدخول في PHP مع logout=1
               window.location.href = 'http://jobsboard.mywebcommunity.org/login.php?logout=1';
               return 0;
             }
@@ -32,9 +38,12 @@ export default function LogoutClient({ userEmail }: LogoutClientProps) {
           });
         }, 1000);
         
-      } catch (error) {
-        console.error('Logout error:', error);
-        setMessage('حدث خطأ أثناء تسجيل الخروج');
+      } catch (err) {
+        console.error('Logout error:', err);
+        setError('حدث خطأ أثناء تسجيل الخروج');
+        setMessage('فشل تسجيل الخروج');
+        
+        // في حالة الخطأ، توجيه مباشر بعد 2 ثانية
         setTimeout(() => {
           window.location.href = 'http://jobsboard.mywebcommunity.org/login.php';
         }, 2000);
@@ -53,23 +62,36 @@ export default function LogoutClient({ userEmail }: LogoutClientProps) {
           </svg>
         </div>
         
+        {userName && (
+          <p className="text-sm text-gray-500 mb-2">
+            {userName}
+          </p>
+        )}
         {userEmail && (
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-gray-400 mb-4">
             {userEmail}
           </p>
         )}
         
         <h1 className="text-2xl font-bold mb-4">تسجيل الخروج</h1>
         
-        <div className="flex items-center justify-center gap-3 mb-6">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600">{message}</p>
-        </div>
-        
-        {countdown < 3 && countdown > 0 && (
-          <p className="text-sm text-gray-400 mb-4">
-            سيتم التوجيه خلال {countdown} ثوانٍ...
-          </p>
+        {error ? (
+          <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4">
+            {error}
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <p className="text-gray-600">{message}</p>
+            </div>
+            
+            {countdown < 3 && countdown > 0 && (
+              <p className="text-sm text-gray-400 mb-4">
+                سيتم التوجيه خلال {countdown} ثوانٍ...
+              </p>
+            )}
+          </>
         )}
         
         <Link 
