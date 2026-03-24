@@ -2,7 +2,7 @@ import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import MicrosoftProvider from "next-auth/providers/azure-ad";
 
-// تحقق من environment variables
+// التحقق من env
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
   throw new Error("❌ Google Client ID or Secret is missing");
 }
@@ -53,12 +53,10 @@ export const authOptions: NextAuthOptions = {
       if (!user.email) return false;
 
       try {
-        // 🔥 إرسال البيانات للـ proxy للتحقق في jobsboard
+        // 🔥 إرسال البيانات إلى proxy للتحقق في jobsboard
         const res = await fetch(`${process.env.NEXTAUTH_URL}/api/proxy-verify`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: user.email,
             name: user.name,
@@ -73,8 +71,8 @@ export const authOptions: NextAuthOptions = {
           return false;
         }
 
-        // توجيه المستخدم إذا Microsoft
-        if (provider === "azure-ad" && data.redirect) {
+        // توجيه إذا Microsoft
+        if (data.redirect) {
           (user as any).redirectUrl = data.redirect;
         }
 
@@ -115,6 +113,11 @@ export const authOptions: NextAuthOptions = {
       (session as any).provider = token.provider;
       (session as any).accessToken = token.accessToken;
 
+      // حفظ redirect في session
+      if ((token as any).redirectUrl) {
+        (session as any).redirectUrl = (token as any).redirectUrl;
+      }
+
       return session;
     },
 
@@ -123,21 +126,16 @@ export const authOptions: NextAuthOptions = {
       try {
         // روابط خارجية
         if (url.startsWith("http://") || url.startsWith("https://")) {
-          console.log("🌍 External redirect:", url);
           return url;
         }
 
         // روابط داخلية
         if (url.startsWith("/")) {
-          const fullUrl = `${baseUrl}${url}`;
-          console.log("➡️ Internal redirect:", fullUrl);
-          return fullUrl;
+          return new URL(url, baseUrl).toString(); // WHATWG URL API لتجنب DeprecationWarning
         }
 
-        // fallback
         return baseUrl;
-      } catch (error) {
-        console.error("❌ Redirect error:", error);
+      } catch {
         return baseUrl;
       }
     },
@@ -155,7 +153,5 @@ export const authOptions: NextAuthOptions = {
   debug: process.env.NODE_ENV === "development",
 };
 
-// NextAuth handler
 const handler = NextAuth(authOptions);
-
 export { handler as GET, handler as POST };
