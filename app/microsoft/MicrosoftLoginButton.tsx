@@ -13,7 +13,6 @@ export default function MicrosoftLoginButton() {
     setError('');
     
     try {
-      // استخدام redirect: false لمنع التوجيه التلقائي
       const result = await signIn('azure-ad', { 
         redirect: false,
         callbackUrl: '/'
@@ -25,10 +24,8 @@ export default function MicrosoftLoginButton() {
         setError('حدث خطأ أثناء تسجيل الدخول');
         setLoading(false);
       } else if (result?.url) {
-        // إذا كان هناك رابط توجيه من NextAuth، استخدمه
         window.location.href = result.url;
       } else {
-        // إذا لم يكن هناك رابط، حاول التوجيه إلى الصفحة الرئيسية
         window.location.href = '/';
       }
       
@@ -64,7 +61,7 @@ export default function MicrosoftLoginButton() {
         ) : (
           <button
             onClick={handleLogin}
-            className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-200 shadow-md hover:shadow-lg font-medium"
+            className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="currentColor" d="M11.4 11.4H0V0h11.4v11.4zM24 11.4H12.6V0H24v11.4zM11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24z" />
