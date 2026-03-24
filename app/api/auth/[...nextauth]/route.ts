@@ -1,7 +1,6 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import MicrosoftProvider from "next-auth/providers/azure-ad";
-import crypto from 'crypto';
 
 // التحقق من المتغيرات البيئية
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -51,58 +50,64 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // ========== Microsoft (عبر PHP وسيط) ==========
-  if (provider === 'azure-ad') {
-  try {
-    const response = await fetch(`${process.env.NEXTAUTH_URL}/api/verify-microsoft`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: user.email,
-        name: user.name,
-      }),
-    });
-    
-    const data = await response.json();
-    console.log("📦 استجابة verify-microsoft:", data);
-    
-    if (data.success && data.redirect) {
-      user.microsoftRedirect = data.redirect;
-      console.log(`✅ تم إنشاء توكن لـ Microsoft: ${user.microsoftRedirect}`);
-      return true;
-    } else {
-      console.log(`❌ فشل التحقق من Microsoft: ${data.message}`);
-      return false;
-    }
-    
-  } catch (error) {
-    console.error("❌ Microsoft error:", error);
-    return false;
-  }
-}
+      // ========== Microsoft ==========
+      if (provider === 'azure-ad') {
+        try {
+          const response = await fetch('http://jobsboard.mywebcommunity.org/verify-microsoft.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: user.email,
+              name: user.name,
+            }),
+          });
+          
+          if (!response.ok) {
+            console.log("❌ فشل الاتصال بـ verify-microsoft.php");
+            return false;
+          }
+          
+          const data = await response.json();
+          console.log("📦 استجابة verify-microsoft.php:", data);
+          
+          if (data.success && data.redirect) {
+            // ✅ تخزين رابط التوجيه في account بدلاً من user
+            account.microsoftRedirect = data.redirect;
+            console.log(`✅ تم إنشاء توكن لـ Microsoft، رابط التوجيه: ${account.microsoftRedirect}`);
+            return true;
+          } else {
+            console.log(`❌ فشل التحقق من Microsoft: ${data.message}`);
+            return false;
+          }
+          
+        } catch (error) {
+          console.error("❌ Microsoft error:", error);
+          return false;
+        }
+      }
       
       return false;
     },
     
     async jwt({ token, user, account }) {
-      console.log("🔄 JWT - user exists:", user ? "yes" : "no");
+      console.log("🔄 JWT - account exists:", account ? "yes" : "no");
+      console.log("🔄 JWT - account.microsoftRedirect:", account?.microsoftRedirect);
+      
+      if (account) {
+        token.accessToken = account.access_token;
+        token.provider = account.provider;
+        
+        // ✅ نقل microsoftRedirect من account إلى token
+        if (account.microsoftRedirect) {
+          token.microsoftRedirect = account.microsoftRedirect;
+          console.log("✅ تم إضافة microsoftRedirect إلى token من account");
+        }
+      }
       
       if (user) {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
-        
-        console.log("🔄 JWT - user.microsoftRedirect:", user.microsoftRedirect);
-        
-        if (user.microsoftRedirect) {
-          token.microsoftRedirect = user.microsoftRedirect;
-          console.log("✅ تم إضافة microsoftRedirect إلى token");
-        }
-      }
-      
-      if (account) {
-        token.accessToken = account.access_token;
-        token.provider = account.provider;
       }
       
       console.log("🔄 JWT - token after:", { 
