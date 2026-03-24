@@ -8,11 +8,11 @@ export const dynamic = 'force-dynamic';
 export default async function LogoutPage() {
   const session = await getServerSession(authOptions);
   
-  // إذا لم يكن هناك جلسة، قم بتوجيه المستخدم مباشرة إلى login.php
+  // إذا لم تكن هناك جلسة، قم بتوجيه المستخدم مباشرة إلى login.php
   if (!session) {
     redirect('http://jobsboard.mywebcommunity.org/login.php?logout=1');
   }
   
   // تمرير معلومات المستخدم إلى المكون العميل
-  return <LogoutClient userEmail={session.user?.email} />;
+  return <LogoutClient userEmail={session.user?.email} userName={session.user?.name} />;
 }
