@@ -1,14 +1,7 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import MicrosoftProvider from "next-auth/providers/azure-ad";
-import mysql from 'mysql2/promise';
 import crypto from 'crypto';
-
-// بيانات اتصال MySQL
-const DB_HOST = 'fdb1029.awardspace.net';
-const DB_NAME = '4537032_bh';
-const DB_USER = '4537032_bh';
-const DB_PASS = 'sea12345';
 
 // التحقق من المتغيرات البيئية
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -58,52 +51,40 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // ========== Microsoft ==========
+      // ========== Microsoft (عبر PHP وسيط) ==========
       if (provider === 'azure-ad') {
-        let connection;
         try {
-          connection = await mysql.createConnection({
-            host: DB_HOST, user: DB_USER, password: DB_PASS, database: DB_NAME,
-          });
-          
-          // 1. التحقق من وجود البريد في remote_users
-          const [rows] = await connection.execute(
-            'SELECT id FROM remote_users WHERE email = ?',
-            [user.email]
-          );
-          if (!Array.isArray(rows) || rows.length === 0) {
-            console.log(`❌ بريد Microsoft غير مسجل: ${user.email}`);
-            return false;
-          }
-          console.log(`✅ بريد Microsoft موجود: ${user.email}`);
-          
-          // 2. إنشاء token
-          const token = crypto.randomBytes(32).toString('hex');
-          const expiresAt = new Date();
-          expiresAt.setMinutes(expiresAt.getMinutes() + 10);
-          
-          // 3. تخزين token في store_token.php
-          const storeResponse = await fetch('http://jobsboard.mywebcommunity.org/store_token.php', {
+          // استدعاء ملف PHP للتحقق من البريد وإنشاء التوكن
+          const response = await fetch('http://jobsboard.mywebcommunity.org/verify-microsoft.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: user.email, token, expires: expiresAt.toISOString() }),
+            body: JSON.stringify({
+              email: user.email,
+              name: user.name,
+            }),
           });
-          const storeData = await storeResponse.json();
-          if (!storeData.success) {
-            console.log("❌ فشل تخزين token:", storeData.error);
+          
+          if (!response.ok) {
+            console.log("❌ فشل الاتصال بـ verify-microsoft.php");
             return false;
           }
           
-          // 4. حفظ رابط التوجيه في user
-          user.microsoftRedirect = `http://jobsboard.mywebcommunity.org/login.php?token=${token}`;
-          console.log(`✅ تم تخزين token، رابط التوجيه: ${user.microsoftRedirect}`);
-          return true;
+          const data = await response.json();
+          console.log("📦 استجابة verify-microsoft.php:", data);
+          
+          if (data.success && data.redirect) {
+            // حفظ رابط التوجيه في user لنقله إلى jwt
+            user.microsoftRedirect = data.redirect;
+            console.log(`✅ تم إنشاء توكن لـ Microsoft: ${data.redirect}`);
+            return true;
+          } else {
+            console.log(`❌ فشل التحقق من Microsoft: ${data.message}`);
+            return false;
+          }
           
         } catch (error) {
-          console.error("❌ Microsoft error:", error);
+          console.error("❌ Microsoft error (verify-microsoft.php):", error);
           return false;
-        } finally {
-          if (connection) await connection.end();
         }
       }
       
