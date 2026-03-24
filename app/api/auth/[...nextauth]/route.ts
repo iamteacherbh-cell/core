@@ -1,3 +1,6 @@
+// app/api/auth/[...nextauth]/route.ts
+// ✅ الكود المعدّل للتوجيه إلى jobsboard.mywebcommunity.org
+
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import MicrosoftProvider from "next-auth/providers/azure-ad";
@@ -12,6 +15,9 @@ if (!process.env.MICROSOFT_CLIENT_ID || !process.env.MICROSOFT_CLIENT_SECRET) {
 if (!process.env.NEXTAUTH_URL) {
   throw new Error("❌ NEXTAUTH_URL is missing");
 }
+
+// ✅ رابط التوجيه الخارجي
+const EXTERNAL_REDIRECT_BASE = "http://jobsboard.mywebcommunity.org";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -54,26 +60,27 @@ export const authOptions: NextAuthOptions = {
 
       try {
         // 🔥 إرسال البيانات إلى proxy للتحقق في jobsboard
-       const res = await fetch(`${process.env.NEXTAUTH_URL}/api/proxy-verify`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-        email: user.email,
-        name: user.name,
-        provider: provider === "azure-ad" ? "microsoft" : provider,
-    }),
-});
+        const res = await fetch(`${process.env.NEXTAUTH_URL}/api/proxy-verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: user.email,
+            name: user.name,
+            provider: provider === "azure-ad" ? "microsoft" : provider,
+          }),
+        });
 
-const data = await res.json();
+        const data = await res.json();
 
         if (!data.success) {
           console.log("❌ Verify failed:", data.message);
           return false;
         }
 
-        // توجيه إذا Microsoft
+        // ✅ إذا فيه redirect URL، ارجعه مباشرة (NextAuth سيوجه إليه)
         if (data.redirect) {
-          (user as any).redirectUrl = data.redirect;
+          console.log("✅ Redirecting to:", data.redirect);
+          return data.redirect;
         }
 
         return true;
@@ -88,11 +95,6 @@ const data = await res.json();
       if (user) {
         token.email = user.email;
         token.name = user.name;
-
-        // حفظ redirect
-        if ((user as any).redirectUrl) {
-          token.redirectUrl = (user as any).redirectUrl;
-        }
       }
 
       if (account) {
@@ -113,29 +115,53 @@ const data = await res.json();
       (session as any).provider = token.provider;
       (session as any).accessToken = token.accessToken;
 
-      // حفظ redirect في session
-      if ((token as any).redirectUrl) {
-        (session as any).redirectUrl = (token as any).redirectUrl;
-      }
-
       return session;
     },
 
     // ================= REDIRECT =================
     async redirect({ url, baseUrl }) {
       try {
-        // روابط خارجية
-        if (url.startsWith("http://") || url.startsWith("https://")) {
+        // ✅ السماح بالتوجيه إلى jobsboard
+        if (url.includes("jobsboard.mywebcommunity.org")) {
+          console.log("✅ Allowing redirect to jobsboard:", url);
           return url;
         }
 
-        // روابط داخلية
+        // ✅ السماح بالروابط الخارجية الموثوقة
+        const trustedDomains = [
+          "jobsboard.mywebcommunity.org",
+          "icore.life",
+        ];
+
+        try {
+          const urlObj = new URL(url);
+          if (trustedDomains.some(domain => urlObj.hostname.includes(domain))) {
+            return url;
+          }
+        } catch {
+          // ليس URL صالح، تابع
+        }
+
+        // روابط http/https أخرى
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+          // تحقق إذا كان من نفس الدومين
+          const urlObj = new URL(url);
+          const baseObj = new URL(baseUrl);
+          if (urlObj.origin === baseObj.origin) {
+            return url;
+          }
+          // للروابط الخارجية غير الموثوقة، ارجع للـ base
+          return baseUrl;
+        }
+
+        // روابط داخلية (تبدأ بـ /)
         if (url.startsWith("/")) {
-          return new URL(url, baseUrl).toString(); // WHATWG URL API لتجنب DeprecationWarning
+          return new URL(url, baseUrl).toString();
         }
 
         return baseUrl;
-      } catch {
+      } catch (error) {
+        console.error("Redirect error:", error);
         return baseUrl;
       }
     },
