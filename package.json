@@ -6,7 +6,7 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "node --no-deprecation server.js"
   },
   "dependencies": {
     "@ai-sdk/react": "3.0.29",
@@ -77,7 +77,4 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }
-  "scripts": {
-  "start": "node --no-deprecation server.js"
-}
 }
