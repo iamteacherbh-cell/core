@@ -52,40 +52,34 @@ export const authOptions: NextAuthOptions = {
       }
 
       // ========== Microsoft (عبر PHP وسيط) ==========
-      if (provider === 'azure-ad') {
-        try {
-          const response = await fetch('http://jobsboard.mywebcommunity.org/verify-microsoft.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: user.email,
-              name: user.name,
-            }),
-          });
-          
-          if (!response.ok) {
-            console.log("❌ فشل الاتصال بـ verify-microsoft.php");
-            return false;
-          }
-          
-          const data = await response.json();
-          console.log("📦 استجابة verify-microsoft.php:", data);
-          
-          if (data.success && data.redirect) {
-            // حفظ رابط التوجيه في user لنقله إلى jwt
-            user.microsoftRedirect = data.redirect;
-            console.log(`✅ تم إنشاء توكن لـ Microsoft، رابط التوجيه: ${user.microsoftRedirect}`);
-            return true;
-          } else {
-            console.log(`❌ فشل التحقق من Microsoft: ${data.message}`);
-            return false;
-          }
-          
-        } catch (error) {
-          console.error("❌ Microsoft error (verify-microsoft.php):", error);
-          return false;
-        }
-      }
+  if (provider === 'azure-ad') {
+  try {
+    const response = await fetch(`${process.env.NEXTAUTH_URL}/api/verify-microsoft`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: user.email,
+        name: user.name,
+      }),
+    });
+    
+    const data = await response.json();
+    console.log("📦 استجابة verify-microsoft:", data);
+    
+    if (data.success && data.redirect) {
+      user.microsoftRedirect = data.redirect;
+      console.log(`✅ تم إنشاء توكن لـ Microsoft: ${user.microsoftRedirect}`);
+      return true;
+    } else {
+      console.log(`❌ فشل التحقق من Microsoft: ${data.message}`);
+      return false;
+    }
+    
+  } catch (error) {
+    console.error("❌ Microsoft error:", error);
+    return false;
+  }
+}
       
       return false;
     },
