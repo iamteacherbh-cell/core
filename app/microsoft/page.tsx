@@ -1,11 +1,11 @@
-export const dynamic = 'force-dynamic';
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+
+export const dynamic = 'force-dynamic';
 
 export default function MicrosoftLoginPage() {
   const router = useRouter();
