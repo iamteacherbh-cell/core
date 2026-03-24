@@ -2,12 +2,15 @@ import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import MicrosoftProvider from "next-auth/providers/azure-ad";
 
-// التحقق من المتغيرات البيئية
+// تحقق من env
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-  throw new Error("❌ Google Client ID or Secret is missing in .env.local");
+  throw new Error("❌ Google Client ID or Secret is missing");
 }
 if (!process.env.MICROSOFT_CLIENT_ID || !process.env.MICROSOFT_CLIENT_SECRET) {
-  throw new Error("❌ Microsoft Client ID or Secret is missing in .env.local");
+  throw new Error("❌ Microsoft Client ID or Secret is missing");
+}
+if (!process.env.NEXTAUTH_URL) {
+  throw new Error("❌ NEXTAUTH_URL is missing");
 }
 
 export const authOptions: NextAuthOptions = {
@@ -16,16 +19,25 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
+
     MicrosoftProvider({
       clientId: process.env.MICROSOFT_CLIENT_ID!,
       clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
       tenantId: "common",
-      authorization: { params: { scope: "openid email profile User.Read" } },
+      authorization: {
+        params: {
+          scope: "openid email profile User.Read",
+        },
+      },
     }),
   ],
 
   secret: process.env.NEXTAUTH_SECRET,
-  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60,
+  },
 
   pages: {
     signIn: "/login1",
@@ -33,130 +45,110 @@ export const authOptions: NextAuthOptions = {
   },
 
   callbacks: {
+    // ================= SIGN IN =================
     async signIn({ user, account }) {
       const provider = account?.provider || "unknown";
-      console.log(`🔐 محاولة دخول عبر ${provider}:`, user.email);
+      console.log(`🔐 Login via ${provider}:`, user.email);
 
       if (!user.email) return false;
 
-      // ================= Google =================
-      if (provider === "google") {
-        try {
-          const res = await fetch(`${process.env.NEXTAUTH_URL}/api/proxy-verify`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: user.email,
-              name: user.name,
-              provider: "google",
-            }),
-          });
+      try {
+        // 🔥 نستخدم proxy بدل HTTP مباشر
+        const res = await fetch(`${process.env.NEXTAUTH_URL}/api/proxy-verify`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: user.email,
+            name: user.name,
+            provider,
+          }),
+        });
 
-          const data = await res.json();
+        const data = await res.json();
 
-          if (!data.success) {
-            console.log("❌ Google verify failed:", data.message);
-            return false;
-          }
-
-          return true;
-        } catch (error) {
-          console.error("❌ Google error:", error);
+        if (!data.success) {
+          console.log("❌ Verify failed:", data.message);
           return false;
         }
-      }
 
-      // ================= Microsoft =================
-      if (provider === "azure-ad") {
-        try {
-          const res = await fetch(`${process.env.NEXTAUTH_URL}/api/proxy-verify`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: user.email,
-              name: user.name,
-              provider: "microsoft",
-            }),
-          });
-
-          const data = await res.json();
-
-          if (!data.success) {
-            console.log("❌ Microsoft verify failed:", data.message);
-            return false;
-          }
-
-          // ✅ حفظ رابط التوجيه
-          user.microsoftRedirect = data.redirect;
-
-          console.log("✅ Microsoft redirect:", data.redirect);
-
-          return true;
-        } catch (error) {
-          console.error("❌ Microsoft error:", error);
-          return false;
+        // ✅ إذا Microsoft فيه redirect
+        if (provider === "azure-ad" && data.redirect) {
+          (user as any).redirectUrl = data.redirect;
         }
-      }
 
-      return false;
+        return true;
+      } catch (error) {
+        console.error("❌ Auth error:", error);
+        return false;
+      }
     },
 
+    // ================= JWT =================
     async jwt({ token, user, account }) {
       if (user) {
-        token.id = user.id;
         token.email = user.email;
         token.name = user.name;
 
-        if ((user as any).microsoftRedirect) {
-          token.microsoftRedirect = (user as any).microsoftRedirect;
+        // حفظ redirect
+        if ((user as any).redirectUrl) {
+          token.redirectUrl = (user as any).redirectUrl;
         }
       }
 
       if (account) {
-        token.accessToken = account.access_token;
         token.provider = account.provider;
+        token.accessToken = account.access_token;
       }
 
       return token;
     },
 
+    // ================= SESSION =================
     async session({ session, token }) {
-      if (session?.user) {
-        session.user.id = token.id as string;
+      if (session.user) {
         session.user.email = token.email as string;
         session.user.name = token.name as string;
       }
 
-      (session as any).accessToken = token.accessToken;
       (session as any).provider = token.provider;
+      (session as any).accessToken = token.accessToken;
 
       return session;
     },
 
-    async redirect({ url, baseUrl, token }) {
-      // ✅ Microsoft redirect
-      if ((token as any)?.microsoftRedirect) {
-        return (token as any).microsoftRedirect;
-      }
+    // ================= REDIRECT =================
+    async redirect({ url, baseUrl }) {
+      try {
+        // ✅ روابط خارجية
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+          console.log("🌍 External redirect:", url);
+          return url;
+        }
 
-      if (url.includes("error")) {
-        return `${baseUrl}/login1?error=access_denied`;
-      }
+        // ✅ روابط داخلية
+        if (url.startsWith("/")) {
+          const fullUrl = `${baseUrl}${url}`;
+          console.log("➡️ Internal redirect:", fullUrl);
+          return fullUrl;
+        }
 
-      if (url.startsWith("/")) {
-        return `${baseUrl}${url}`;
+        // fallback
+        return baseUrl;
+      } catch (error) {
+        console.error("❌ Redirect error:", error);
+        return baseUrl;
       }
-
-      return baseUrl;
     },
   },
 
   events: {
     async signIn(message) {
-      console.log("✅ دخول:", message.user?.email);
+      console.log("✅ Signed in:", message.user?.email);
     },
     async signOut(message) {
-      console.log("👋 خروج:", message.session?.user?.email);
+      console.log("👋 Signed out:", message.session?.user?.email);
     },
   },
 
@@ -164,4 +156,5 @@ export const authOptions: NextAuthOptions = {
 };
 
 const handler = NextAuth(authOptions);
+
 export { handler as GET, handler as POST };
