@@ -2,46 +2,50 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // إنشاء استجابة أولية
-  const supabaseResponse = NextResponse.next({ request })
+  let supabaseResponse = NextResponse.next({ request })
+  let supabase = null
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value)
-            supabaseResponse.cookies.set(name, value, {
-              ...options,
-              domain: process.env.NODE_ENV === 'production' ? '.icore.life' : undefined,
-              path: '/',
-              sameSite: 'lax',
-              secure: process.env.NODE_ENV === 'production',
+  // فقط حاول إنشاء عميل Supabase إذا كانت المتغيرات موجودة
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value)
+              supabaseResponse.cookies.set(name, value, {
+                ...options,
+                path: '/',
+                sameSite: 'lax',
+                secure: process.env.NODE_ENV === 'production',
+              })
             })
-          })
+          },
         },
-      },
-    }
-  )
+      }
+    )
+  }
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let user = null
+  if (supabase) {
+    const { data: { user: fetchedUser } } = await supabase.auth.getUser()
+    user = fetchedUser
+  }
 
-  console.log(`[Middleware] Path: ${request.nextUrl.pathname}, User: ${user?.email || 'none'}`)
-
-  // السماح بالوصول إلى الصفحات العامة
-  if (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup' || request.nextUrl.pathname === '/login1') {
+  // ✅ أضف '/microsoft' إلى المسارات العامة
+  const publicPaths = ['/login', '/signup', '/login1', '/microsoft']
+  if (publicPaths.includes(request.nextUrl.pathname)) {
     return supabaseResponse
   }
 
   // حماية مسار dashboard
   if (request.nextUrl.pathname.startsWith('/dashboard')) {
     if (!user) {
-      console.log(`[Middleware] No user, redirecting to login from: ${request.nextUrl.pathname}`)
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)
