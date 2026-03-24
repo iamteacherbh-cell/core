@@ -2,7 +2,7 @@ import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import MicrosoftProvider from "next-auth/providers/azure-ad";
 
-// تحقق من env
+// تحقق من environment variables
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
   throw new Error("❌ Google Client ID or Secret is missing");
 }
@@ -53,17 +53,18 @@ export const authOptions: NextAuthOptions = {
       if (!user.email) return false;
 
       try {
-        // 🔥 نستخدم proxy بدل HTTP مباشر
+        // 🔥 إرسال البيانات للـ proxy للتحقق في jobsboard
         const res = await fetch(`${process.env.NEXTAUTH_URL}/api/proxy-verify`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-         body: JSON.stringify({
-  email: user.email,
-  name: user.name,
-  provider: provider === "azure-ad" ? "microsoft" : provider,
-}),
+          body: JSON.stringify({
+            email: user.email,
+            name: user.name,
+            provider: provider === "azure-ad" ? "microsoft" : provider,
+          }),
+        });
 
         const data = await res.json();
 
@@ -72,7 +73,7 @@ export const authOptions: NextAuthOptions = {
           return false;
         }
 
-        // ✅ إذا Microsoft فيه redirect
+        // توجيه المستخدم إذا Microsoft
         if (provider === "azure-ad" && data.redirect) {
           (user as any).redirectUrl = data.redirect;
         }
@@ -120,13 +121,13 @@ export const authOptions: NextAuthOptions = {
     // ================= REDIRECT =================
     async redirect({ url, baseUrl }) {
       try {
-        // ✅ روابط خارجية
+        // روابط خارجية
         if (url.startsWith("http://") || url.startsWith("https://")) {
           console.log("🌍 External redirect:", url);
           return url;
         }
 
-        // ✅ روابط داخلية
+        // روابط داخلية
         if (url.startsWith("/")) {
           const fullUrl = `${baseUrl}${url}`;
           console.log("➡️ Internal redirect:", fullUrl);
@@ -154,6 +155,7 @@ export const authOptions: NextAuthOptions = {
   debug: process.env.NODE_ENV === "development",
 };
 
+// NextAuth handler
 const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };
