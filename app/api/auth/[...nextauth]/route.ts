@@ -71,7 +71,7 @@ export const authOptions: NextAuthOptions = {
           console.log("📦 استجابة verify-microsoft.php:", data);
           
           if (data.success && data.redirect) {
-            // تخزين رابط التوجيه في account
+            // ✅ تخزين رابط التوجيه في account بدلاً من user
             account.microsoftRedirect = data.redirect;
             console.log(`✅ تم إنشاء توكن لـ Microsoft، رابط التوجيه: ${account.microsoftRedirect}`);
             return true;
@@ -90,14 +90,17 @@ export const authOptions: NextAuthOptions = {
     },
     
     async jwt({ token, user, account }) {
+      console.log("🔄 JWT - account exists:", account ? "yes" : "no");
+      console.log("🔄 JWT - account.microsoftRedirect:", account?.microsoftRedirect);
+      
       if (account) {
         token.accessToken = account.access_token;
         token.provider = account.provider;
         
-        // نقل microsoftRedirect من account إلى token
+        // ✅ نقل microsoftRedirect من account إلى token
         if (account.microsoftRedirect) {
           token.microsoftRedirect = account.microsoftRedirect;
-          console.log("✅ تم إضافة microsoftRedirect إلى token");
+          console.log("✅ تم إضافة microsoftRedirect إلى token من account");
         }
       }
       
@@ -106,6 +109,11 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email;
         token.name = user.name;
       }
+      
+      console.log("🔄 JWT - token after:", { 
+        hasMicrosoftRedirect: !!token.microsoftRedirect,
+        provider: token.provider 
+      });
       
       return token;
     },
@@ -122,23 +130,28 @@ export const authOptions: NextAuthOptions = {
     },
     
     async redirect({ url, baseUrl, token }) {
-      // ✅ رابط مخصص لـ Microsoft
+      console.log("🔀 Redirect - token exists:", token ? "yes" : "no");
+      console.log("🔀 Redirect - token.microsoftRedirect:", token?.microsoftRedirect);
+      console.log("🔀 Redirect - url:", url);
+      console.log("🔀 Redirect - baseUrl:", baseUrl);
+      
+      // ✅ إذا كان هناك رابط مخصص لـ Microsoft، استخدمه
       if (token?.microsoftRedirect) {
         console.log("🔀 التوجيه إلى Microsoft:", token.microsoftRedirect);
         return token.microsoftRedirect;
       }
       
-      // ✅ رابط خطأ
       if (url.includes('error')) {
+        console.log("🔀 التوجيه إلى خطأ:", `${baseUrl}/login1?error=access_denied`);
         return `${baseUrl}/login1?error=access_denied`;
       }
       
-      // ✅ رابط داخلي
       if (url.startsWith('/')) {
+        console.log("🔀 التوجيه إلى مسار داخلي:", `${baseUrl}${url}`);
         return `${baseUrl}${url}`;
       }
       
-      // ✅ التوجيه الافتراضي إلى الصفحة الرئيسية (وليس GitHub!)
+      console.log("🔀 التوجيه الافتراضي إلى:", `${baseUrl}/`);
       return `${baseUrl}/`;
     },
   },
