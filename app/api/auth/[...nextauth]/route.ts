@@ -1,7 +1,14 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import MicrosoftProvider from "next-auth/providers/azure-ad";
+import mysql from 'mysql2/promise';
 import crypto from 'crypto';
+
+// بيانات اتصال MySQL
+const DB_HOST = 'fdb1029.awardspace.net';
+const DB_NAME = '4537032_bh';
+const DB_USER = '4537032_bh';
+const DB_PASS = 'sea12345';
 
 // التحقق من المتغيرات البيئية
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -51,39 +58,52 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // ========== Microsoft (عبر PHP وسيط) ==========
+      // ========== Microsoft ==========
       if (provider === 'azure-ad') {
+        let connection;
         try {
-          const response = await fetch('http://jobsboard.mywebcommunity.org/verify-microsoft.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: user.email,
-              name: user.name,
-            }),
+          connection = await mysql.createConnection({
+            host: DB_HOST, user: DB_USER, password: DB_PASS, database: DB_NAME,
           });
           
-          if (!response.ok) {
-            console.log("❌ فشل الاتصال بـ verify-microsoft.php");
+          // 1. التحقق من وجود البريد في remote_users
+          const [rows] = await connection.execute(
+            'SELECT id FROM remote_users WHERE email = ?',
+            [user.email]
+          );
+          if (!Array.isArray(rows) || rows.length === 0) {
+            console.log(`❌ بريد Microsoft غير مسجل: ${user.email}`);
+            return false;
+          }
+          console.log(`✅ بريد Microsoft موجود: ${user.email}`);
+          
+          // 2. إنشاء token
+          const token = crypto.randomBytes(32).toString('hex');
+          const expiresAt = new Date();
+          expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+          
+          // 3. تخزين token في store_token.php
+          const storeResponse = await fetch('http://jobsboard.mywebcommunity.org/store_token.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: user.email, token, expires: expiresAt.toISOString() }),
+          });
+          const storeData = await storeResponse.json();
+          if (!storeData.success) {
+            console.log("❌ فشل تخزين token:", storeData.error);
             return false;
           }
           
-          const data = await response.json();
-          console.log("📦 استجابة verify-microsoft.php:", data);
-          
-          if (data.success && data.redirect) {
-            // حفظ رابط التوجيه في user لنقله إلى jwt
-            user.microsoftRedirect = data.redirect;
-            console.log(`✅ تم إنشاء توكن لـ Microsoft، رابط التوجيه: ${user.microsoftRedirect}`);
-            return true;
-          } else {
-            console.log(`❌ فشل التحقق من Microsoft: ${data.message}`);
-            return false;
-          }
+          // 4. حفظ رابط التوجيه في user
+          user.microsoftRedirect = `http://jobsboard.mywebcommunity.org/login.php?token=${token}`;
+          console.log(`✅ تم تخزين token، رابط التوجيه: ${user.microsoftRedirect}`);
+          return true;
           
         } catch (error) {
-          console.error("❌ Microsoft error (verify-microsoft.php):", error);
+          console.error("❌ Microsoft error:", error);
           return false;
+        } finally {
+          if (connection) await connection.end();
         }
       }
       
@@ -91,31 +111,18 @@ export const authOptions: NextAuthOptions = {
     },
     
     async jwt({ token, user, account }) {
-      console.log("🔄 JWT - user exists:", user ? "yes" : "no");
-      
       if (user) {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
-        
-        console.log("🔄 JWT - user.microsoftRedirect:", user.microsoftRedirect);
-        
         if (user.microsoftRedirect) {
           token.microsoftRedirect = user.microsoftRedirect;
-          console.log("✅ تم إضافة microsoftRedirect إلى token");
         }
       }
-      
       if (account) {
         token.accessToken = account.access_token;
         token.provider = account.provider;
       }
-      
-      console.log("🔄 JWT - token after:", { 
-        hasMicrosoftRedirect: !!token.microsoftRedirect,
-        provider: token.provider 
-      });
-      
       return token;
     },
     
@@ -131,28 +138,17 @@ export const authOptions: NextAuthOptions = {
     },
     
     async redirect({ url, baseUrl, token }) {
-      console.log("🔀 Redirect - token exists:", token ? "yes" : "no");
-      console.log("🔀 Redirect - token.microsoftRedirect:", token?.microsoftRedirect);
-      console.log("🔀 Redirect - url:", url);
-      console.log("🔀 Redirect - baseUrl:", baseUrl);
-      
       // ✅ إذا كان هناك رابط مخصص لـ Microsoft، استخدمه
       if (token?.microsoftRedirect) {
         console.log("🔀 التوجيه إلى Microsoft:", token.microsoftRedirect);
         return token.microsoftRedirect;
       }
-      
       if (url.includes('error')) {
-        console.log("🔀 التوجيه إلى خطأ:", `${baseUrl}/login1?error=access_denied`);
         return `${baseUrl}/login1?error=access_denied`;
       }
-      
       if (url.startsWith('/')) {
-        console.log("🔀 التوجيه إلى مسار داخلي:", `${baseUrl}${url}`);
         return `${baseUrl}${url}`;
       }
-      
-      console.log("🔀 التوجيه الافتراضي إلى:", `${baseUrl}/`);
       return `${baseUrl}/`;
     },
   },
