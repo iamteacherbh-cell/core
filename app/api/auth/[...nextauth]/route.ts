@@ -2,9 +2,10 @@ import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import MicrosoftProvider from "next-auth/providers/azure-ad";
 import mysql from 'mysql2/promise';
+import crypto from 'crypto';
 
 // ===========================================
-// بيانات اتصال MySQL من AwardSpace (نفس بيانات verify-email.php)
+// بيانات اتصال MySQL من AwardSpace
 // ===========================================
 const DB_HOST = 'fdb1029.awardspace.net';
 const DB_NAME = '4537032_bh';
@@ -62,7 +63,7 @@ export const authOptions: NextAuthOptions = {
       }
 
       // ===========================================
-      // 1. إذا كان Google: استخدم verify-email.php
+      // 1. Google: استخدم verify-email.php
       // ===========================================
       if (provider === 'google') {
         try {
@@ -95,7 +96,7 @@ export const authOptions: NextAuthOptions = {
       }
 
       // ===========================================
-      // 2. إذا كان Microsoft: تحقق مباشرة من قاعدة البيانات
+      // 2. Microsoft: تحقق من قاعدة البيانات وأنشئ token
       // ===========================================
       if (provider === 'azure-ad') {
         let connection;
@@ -106,26 +107,61 @@ export const authOptions: NextAuthOptions = {
             password: DB_PASS,
             database: DB_NAME,
           });
+          
+          // 1. التحقق من وجود البريد في جدول remote_users
           const [rows] = await connection.execute(
-            'SELECT id FROM remote_users WHERE email = ?',
+            'SELECT id, username, full_name FROM remote_users WHERE email = ?',
             [user.email]
           );
-          if (Array.isArray(rows) && rows.length > 0) {
-            console.log(`✅ بريد Microsoft موجود في قاعدة البيانات: ${user.email}`);
-            return true;
-          } else {
+          
+          if (!Array.isArray(rows) || rows.length === 0) {
             console.log(`❌ بريد Microsoft غير مسجل: ${user.email}`);
             return false;
           }
+          
+          console.log(`✅ بريد Microsoft موجود: ${user.email}`);
+          
+          // 2. إنشاء token عشوائي
+          const token = crypto.randomBytes(32).toString('hex');
+          const expiresAt = new Date();
+          expiresAt.setMinutes(expiresAt.getMinutes() + 10); // صالح لمدة 10 دقائق
+          
+          // 3. تخزين token في جدول auth_tokens عبر store_token.php
+          const storeResponse = await fetch('http://jobsboard.mywebcommunity.org/store_token.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: user.email,
+              token: token,
+              expires: expiresAt.toISOString(),
+            }),
+          });
+          
+          if (!storeResponse.ok) {
+            console.log("❌ فشل تخزين token في store_token.php");
+            return false;
+          }
+          
+          const storeData = await storeResponse.json();
+          if (!storeData.success) {
+            console.log("❌ store_token.php أعاد فشل:", storeData.error);
+            return false;
+          }
+          
+          // 4. تخزين رابط التوجيه في user object لنقله إلى jwt
+          user.microsoftRedirect = `http://jobsboard.mywebcommunity.org/login.php?token=${token}`;
+          console.log(`✅ تم إنشاء token وتخزينه، رابط التوجيه: ${user.microsoftRedirect}`);
+          
+          return true;
+          
         } catch (error) {
-          console.error("❌ خطأ في الاتصال بقاعدة البيانات (Microsoft):", error);
+          console.error("❌ خطأ في التحقق (Microsoft):", error);
           return false;
         } finally {
           if (connection) await connection.end();
         }
       }
 
-      // إذا كان provider غير معروف
       console.log(`❌ Provider غير مدعوم: ${provider}`);
       return false;
     },
@@ -135,6 +171,11 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
+        
+        // ✅ نقل رابط التوجيه من user إلى token إذا كان موجودًا (لـ Microsoft)
+        if (user.microsoftRedirect) {
+          token.microsoftRedirect = user.microsoftRedirect;
+        }
       }
       if (account) {
         token.accessToken = account.access_token;
@@ -157,13 +198,21 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     
-    async redirect({ url, baseUrl }) {
+    async redirect({ url, baseUrl, token }) {
+      // ✅ إذا كان هناك رابط توجيه مخصص لـ Microsoft، استخدمه أولاً
+      if (token?.microsoftRedirect) {
+        return token.microsoftRedirect;
+      }
+      
+      // إذا كان هناك خطأ
       if (url.includes('error')) {
         return `${baseUrl}/login1?error=access_denied`;
       }
+      // إذا كان المستخدم قادم من صفحة معينة
       if (url.startsWith('/')) {
         return `${baseUrl}${url}`;
       }
+      // التوجيه الافتراضي
       return `${baseUrl}/`;
     },
   },
