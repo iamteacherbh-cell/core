@@ -1,9 +1,15 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import MicrosoftProvider from "next-auth/providers/azure-ad";
 
-// التحقق من وجود المتغيرات البيئية
+// التحقق من وجود المتغيرات البيئية لـ Google
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
   throw new Error("❌ Google Client ID or Secret is missing in .env.local");
+}
+
+// التحقق من وجود المتغيرات البيئية لـ Microsoft
+if (!process.env.MICROSOFT_CLIENT_ID || !process.env.MICROSOFT_CLIENT_SECRET) {
+  throw new Error("❌ Microsoft Client ID or Secret is missing in .env.local");
 }
 
 export const authOptions: NextAuthOptions = {
@@ -11,6 +17,18 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    }),
+    MicrosoftProvider({
+      clientId: process.env.MICROSOFT_CLIENT_ID,
+      clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+      // استخدام "common" للسماح بأي حساب Microsoft شخصي (outlook, hotmail, live)
+      tenantId: "common",
+      // تحديد نطاقات إضافية إذا احتجت
+      authorization: {
+        params: {
+          scope: "openid email profile User.Read",
+        },
+      },
     }),
   ],
   
@@ -22,14 +40,15 @@ export const authOptions: NextAuthOptions = {
   },
   
   pages: {
-    signIn: "/login1", // توجيه إلى صفحة login1 (التي تستخدم verify-email.php)
+    signIn: "/login1",
     error: "/login1?error=true",
   },
   
   callbacks: {
-    // التحقق من البريد الإلكتروني عند تسجيل الدخول
+    // التحقق من البريد الإلكتروني عند تسجيل الدخول (لكل provider)
     async signIn({ user, account, profile }) {
-      console.log("🔐 محاولة دخول عبر Google:", user.email);
+      const provider = account?.provider || 'unknown';
+      console.log(`🔐 محاولة دخول عبر ${provider}:`, user.email);
       
       if (!user.email) {
         console.log("❌ لا يوجد بريد إلكتروني");
@@ -46,9 +65,8 @@ export const authOptions: NextAuthOptions = {
           body: JSON.stringify({
             email: user.email,
             name: user.name,
-            provider: 'google'
+            provider: provider,
           }),
-          // مهم: للاتصال بخادم آخر
           cache: 'no-cache',
         });
 
@@ -60,11 +78,10 @@ export const authOptions: NextAuthOptions = {
         const data = await response.json();
         
         if (data.success) {
-          console.log("✅ البريد موجود - سماح بالدخول");
-          // تخزين بيانات المستخدم إضافية إذا أردت
+          console.log(`✅ البريد موجود - سماح بالدخول عبر ${provider}`);
           return true;
         } else {
-          console.log("❌ البريد غير موجود - رفض الدخول");
+          console.log(`❌ البريد غير موجود - رفض الدخول عبر ${provider}`);
           return false;
         }
         
@@ -84,6 +101,10 @@ export const authOptions: NextAuthOptions = {
       if (account) {
         token.accessToken = account.access_token;
         token.provider = account.provider;
+        // إضافة الـ refresh token إذا كان موجودًا
+        if (account.refresh_token) {
+          token.refreshToken = account.refresh_token;
+        }
       }
       return token;
     },
@@ -95,17 +116,24 @@ export const authOptions: NextAuthOptions = {
         session.user.email = token.email as string;
         session.user.name = token.name as string;
       }
+      // إضافة التوكن للجلسة إذا احتجت استخدامه في API
+      session.accessToken = token.accessToken as string;
+      session.provider = token.provider as string;
       return session;
     },
     
     // التوجيه بعد تسجيل الدخول
     async redirect({ url, baseUrl }) {
-      // إذا كان هناك خطأ
+      // ✅ تعديل: التوجيه إلى الصفحة الرئيسية بدلاً من dashboard1
       if (url.includes('error')) {
         return `${baseUrl}/login1?error=access_denied`;
       }
-      // توجيه إلى dashboard1 الخاص بـ login1
-      return `${baseUrl}/dashboard1`;
+      // إذا كان المستخدم قادم من صفحة معينة، ارجعه إليها
+      if (url.startsWith('/')) {
+        return `${baseUrl}${url}`;
+      }
+      // التوجيه الافتراضي إلى الصفحة الرئيسية
+      return `${baseUrl}/`;
     },
   },
   
