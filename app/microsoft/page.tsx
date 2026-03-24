@@ -5,13 +5,10 @@ import MicrosoftLoginButton from './MicrosoftLoginButton';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MicrosoftLoginPage() {
+export default async function MicrosoftPage() {
   const session = await getServerSession(authOptions);
-
-  // إذا كان المستخدم مسجلاً بالفعل، انتقل إلى الصفحة الرئيسية
   if (session) {
     redirect('/');
   }
-
   return <MicrosoftLoginButton />;
 }
