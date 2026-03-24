@@ -5,6 +5,7 @@ import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+// منع البناء الثابت للصفحة
 export const dynamic = 'force-dynamic';
 
 export default function MicrosoftLoginPage() {
@@ -16,7 +17,7 @@ export default function MicrosoftLoginPage() {
   // إذا كان المستخدم مسجل الدخول بالفعل، قم بتوجيهه
   useEffect(() => {
     if (status === 'authenticated' && session) {
-      router.push('/'); // أو الصفحة التي تريدها بعد تسجيل الدخول
+      router.push('/');
     }
   }, [session, status, router]);
 
@@ -25,9 +26,8 @@ export default function MicrosoftLoginPage() {
     setError('');
     
     try {
-      // تسجيل الدخول عبر Microsoft - تحديد callback URL
       await signIn('azure-ad', { 
-        callbackUrl: '/', // بعد النجاح يذهب إلى الصفحة الرئيسية
+        callbackUrl: '/',
         redirect: true 
       });
     } catch (err) {
@@ -101,7 +101,6 @@ export default function MicrosoftLoginPage() {
           </Link>
         </div>
         
-        {/* معلومات إضافية */}
         <div className="mt-4 text-center text-xs text-gray-400">
           <p>سيتم التحقق من بريدك الإلكتروني مع النظام</p>
         </div>
