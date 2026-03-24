@@ -1,79 +1,92 @@
-import { NextRequest, NextResponse } from "next/server";
+// app/api/proxy-verify/route.ts
+// ✅ API للتحقق من البريد وإنشاء token للتوجيه إلى jobsboard
 
-// تفعيل Node.js runtime للسماح بطلبات HTTP
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
 
-export async function POST(req: NextRequest) {
+// ✅ رابط موقعك الخارجي
+const JOBSBOARD_URL = "http://jobsboard.mywebcommunity.org";
+
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
+    const body = await request.json();
+    const email = body.email?.trim().replace(/\n/g, '');
+    const name = body.name || '';
+    const provider = body.provider || 'unknown';
 
-    console.log("📤 Sending verification request:", body.email);
+    console.log(`🔍 Verifying email: ${email} via ${provider}`);
 
-    // إنشاء AbortController للتحكم في timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
-
-    const res = await fetch(
-      "http://jobsboard.mywebcommunity.org/verify-microsoft.php",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-        // @ts-ignore - للسماح بطلبات HTTP في Next.js
-        cache: "no-store",
-      }
-    );
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      console.error("❌ HTTP Error:", res.status, res.statusText);
+    if (!email) {
       return NextResponse.json({
         success: false,
-        message: `HTTP Error: ${res.status}`
-      });
+        message: 'البريد مطلوب'
+      }, { status: 400 });
     }
 
-    const text = await res.text();
-    console.log("📥 Raw response:", text);
+    // ✅ إنشاء رمز عشوائي آمن (64 حرف hex)
+    const token = randomBytes(32).toString('hex');
 
-    // محاولة parse JSON
-    let data;
+    // ✅ وقت الانتهاء (10 دقائق)
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+    // ✅ تخزين الرمز في قاعدة بيانات jobsboard
     try {
-      data = JSON.parse(text);
-    } catch (parseErr) {
-      console.error("❌ JSON Parse error:", parseErr);
-      return NextResponse.json({
-        success: false,
-        message: "Invalid response from server"
+      const storeResponse = await fetch(`${JOBSBOARD_URL}/store_token.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          token: token,
+          name: name,
+          provider: provider,
+          expires: expiresAt.toISOString()
+        })
       });
+
+      const storeResult = await storeResponse.json();
+
+      if (!storeResult.success) {
+        console.log("❌ Store token failed:", storeResult.message);
+        // نستمر حتى لو فشل التخزين - قد يكون مشكلة اتصال مؤقتة
+      } else {
+        console.log("✅ Token stored successfully");
+      }
+    } catch (storeError) {
+      console.error("⚠️ Store token error (continuing anyway):", storeError);
+      // نستمر حتى لو فشل - قد يكون مشكلة CORS
     }
 
-    console.log("✅ Verification result:", data);
-    return NextResponse.json(data);
+    // ✅ إرسال رابط التوجيه مع الـ token
+    const redirectUrl = `${JOBSBOARD_URL}/login.php?token=${token}`;
 
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      console.error("❌ Request timeout");
-      return NextResponse.json({ success: false, message: "Request timeout" });
-    }
-    console.error("❌ Proxy verify error:", err.message || err);
-    return NextResponse.json({ success: false, message: "Server error: " + (err.message || "Unknown") });
+    console.log(`✅ Redirect URL: ${redirectUrl}`);
+
+    return NextResponse.json({
+      success: true,
+      redirect: redirectUrl,
+      message: 'تم التحقق بنجاح'
+    });
+
+  } catch (error) {
+    console.error("❌ Proxy verify error:", error);
+    return NextResponse.json({
+      success: false,
+      message: 'خطأ في الخادم'
+    }, { status: 500 });
   }
 }
 
-// دعم OPTIONS للـ CORS
+// ✅ دعم CORS
 export async function OPTIONS() {
-  return NextResponse.json({}, {
+  return new NextResponse(null, {
+    status: 200,
     headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
     },
   });
 }
