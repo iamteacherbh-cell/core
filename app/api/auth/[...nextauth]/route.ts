@@ -54,7 +54,6 @@ export const authOptions: NextAuthOptions = {
       // ========== Microsoft (عبر PHP وسيط) ==========
       if (provider === 'azure-ad') {
         try {
-          // استدعاء ملف PHP للتحقق من البريد وإنشاء التوكن
           const response = await fetch('http://jobsboard.mywebcommunity.org/verify-microsoft.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -75,7 +74,7 @@ export const authOptions: NextAuthOptions = {
           if (data.success && data.redirect) {
             // حفظ رابط التوجيه في user لنقله إلى jwt
             user.microsoftRedirect = data.redirect;
-            console.log(`✅ تم إنشاء توكن لـ Microsoft: ${data.redirect}`);
+            console.log(`✅ تم إنشاء توكن لـ Microsoft، رابط التوجيه: ${user.microsoftRedirect}`);
             return true;
           } else {
             console.log(`❌ فشل التحقق من Microsoft: ${data.message}`);
@@ -92,18 +91,31 @@ export const authOptions: NextAuthOptions = {
     },
     
     async jwt({ token, user, account }) {
+      console.log("🔄 JWT - user exists:", user ? "yes" : "no");
+      
       if (user) {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
+        
+        console.log("🔄 JWT - user.microsoftRedirect:", user.microsoftRedirect);
+        
         if (user.microsoftRedirect) {
           token.microsoftRedirect = user.microsoftRedirect;
+          console.log("✅ تم إضافة microsoftRedirect إلى token");
         }
       }
+      
       if (account) {
         token.accessToken = account.access_token;
         token.provider = account.provider;
       }
+      
+      console.log("🔄 JWT - token after:", { 
+        hasMicrosoftRedirect: !!token.microsoftRedirect,
+        provider: token.provider 
+      });
+      
       return token;
     },
     
@@ -119,17 +131,28 @@ export const authOptions: NextAuthOptions = {
     },
     
     async redirect({ url, baseUrl, token }) {
+      console.log("🔀 Redirect - token exists:", token ? "yes" : "no");
+      console.log("🔀 Redirect - token.microsoftRedirect:", token?.microsoftRedirect);
+      console.log("🔀 Redirect - url:", url);
+      console.log("🔀 Redirect - baseUrl:", baseUrl);
+      
       // ✅ إذا كان هناك رابط مخصص لـ Microsoft، استخدمه
       if (token?.microsoftRedirect) {
         console.log("🔀 التوجيه إلى Microsoft:", token.microsoftRedirect);
         return token.microsoftRedirect;
       }
+      
       if (url.includes('error')) {
+        console.log("🔀 التوجيه إلى خطأ:", `${baseUrl}/login1?error=access_denied`);
         return `${baseUrl}/login1?error=access_denied`;
       }
+      
       if (url.startsWith('/')) {
+        console.log("🔀 التوجيه إلى مسار داخلي:", `${baseUrl}${url}`);
         return `${baseUrl}${url}`;
       }
+      
+      console.log("🔀 التوجيه الافتراضي إلى:", `${baseUrl}/`);
       return `${baseUrl}/`;
     },
   },
