@@ -1,6 +1,7 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import MicrosoftProvider from "next-auth/providers/azure-ad";
+import crypto from 'crypto';
 
 // التحقق من المتغيرات البيئية
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -50,7 +51,7 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // ========== Microsoft ==========
+      // ========== Microsoft (عبر PHP وسيط) ==========
       if (provider === 'azure-ad') {
         try {
           const response = await fetch('http://jobsboard.mywebcommunity.org/verify-microsoft.php', {
@@ -71,9 +72,9 @@ export const authOptions: NextAuthOptions = {
           console.log("📦 استجابة verify-microsoft.php:", data);
           
           if (data.success && data.redirect) {
-            // ✅ تخزين رابط التوجيه في account بدلاً من user
-            account.microsoftRedirect = data.redirect;
-            console.log(`✅ تم إنشاء توكن لـ Microsoft، رابط التوجيه: ${account.microsoftRedirect}`);
+            // حفظ رابط التوجيه في user لنقله إلى jwt
+            user.microsoftRedirect = data.redirect;
+            console.log(`✅ تم إنشاء توكن لـ Microsoft، رابط التوجيه: ${user.microsoftRedirect}`);
             return true;
           } else {
             console.log(`❌ فشل التحقق من Microsoft: ${data.message}`);
@@ -81,7 +82,7 @@ export const authOptions: NextAuthOptions = {
           }
           
         } catch (error) {
-          console.error("❌ Microsoft error:", error);
+          console.error("❌ Microsoft error (verify-microsoft.php):", error);
           return false;
         }
       }
@@ -90,24 +91,24 @@ export const authOptions: NextAuthOptions = {
     },
     
     async jwt({ token, user, account }) {
-      console.log("🔄 JWT - account exists:", account ? "yes" : "no");
-      console.log("🔄 JWT - account.microsoftRedirect:", account?.microsoftRedirect);
-      
-      if (account) {
-        token.accessToken = account.access_token;
-        token.provider = account.provider;
-        
-        // ✅ نقل microsoftRedirect من account إلى token
-        if (account.microsoftRedirect) {
-          token.microsoftRedirect = account.microsoftRedirect;
-          console.log("✅ تم إضافة microsoftRedirect إلى token من account");
-        }
-      }
+      console.log("🔄 JWT - user exists:", user ? "yes" : "no");
       
       if (user) {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
+        
+        console.log("🔄 JWT - user.microsoftRedirect:", user.microsoftRedirect);
+        
+        if (user.microsoftRedirect) {
+          token.microsoftRedirect = user.microsoftRedirect;
+          console.log("✅ تم إضافة microsoftRedirect إلى token");
+        }
+      }
+      
+      if (account) {
+        token.accessToken = account.access_token;
+        token.provider = account.provider;
       }
       
       console.log("🔄 JWT - token after:", { 
