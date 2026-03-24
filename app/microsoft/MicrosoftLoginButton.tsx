@@ -11,26 +11,9 @@ export default function MicrosoftLoginButton() {
   const handleLogin = async () => {
     setLoading(true);
     setError('');
-    
     try {
-      const result = await signIn('azure-ad', { 
-        redirect: false,
-        callbackUrl: '/'
-      });
-      
-      console.log('SignIn result:', result);
-      
-      if (result?.error) {
-        setError('حدث خطأ أثناء تسجيل الدخول');
-        setLoading(false);
-      } else if (result?.url) {
-        window.location.href = result.url;
-      } else {
-        window.location.href = '/';
-      }
-      
+      await signIn('azure-ad', { callbackUrl: '/' });
     } catch (err) {
-      console.error('Microsoft login error:', err);
       setError('حدث خطأ أثناء محاولة تسجيل الدخول');
       setLoading(false);
     }
@@ -48,21 +31,14 @@ export default function MicrosoftLoginButton() {
         </div>
         <h1 className="text-2xl font-bold text-center mb-2 text-gray-800">تسجيل الدخول عبر Microsoft</h1>
         <p className="text-center text-gray-500 mb-8 text-sm">استخدم حساب Microsoft الخاص بك للدخول إلى النظام</p>
-        {error && (
-          <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-center border border-red-200 text-sm">
-            {error}
-          </div>
-        )}
+        {error && <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-center">{error}</div>}
         {loading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
             <p className="mt-4 text-gray-600">جاري التوجيه إلى Microsoft...</p>
           </div>
         ) : (
-          <button
-            onClick={handleLogin}
-            className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition"
-          >
+          <button onClick={handleLogin} className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition">
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="currentColor" d="M11.4 11.4H0V0h11.4v11.4zM24 11.4H12.6V0H24v11.4zM11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24z" />
             </svg>
@@ -70,9 +46,7 @@ export default function MicrosoftLoginButton() {
           </button>
         )}
         <div className="mt-6 text-center">
-          <Link href="/login1" className="text-sm text-gray-500 hover:text-gray-700 transition">
-            ← العودة إلى صفحة تسجيل الدخول
-          </Link>
+          <Link href="/login1" className="text-sm text-gray-500 hover:text-gray-700 transition">← العودة إلى صفحة تسجيل الدخول</Link>
         </div>
       </div>
     </div>
