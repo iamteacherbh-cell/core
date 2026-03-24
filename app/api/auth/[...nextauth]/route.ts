@@ -59,12 +59,11 @@ export const authOptions: NextAuthOptions = {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            email: user.email,
-            name: user.name,
-            provider,
-          }),
-        });
+         body: JSON.stringify({
+  email: user.email,
+  name: user.name,
+  provider: provider === "azure-ad" ? "microsoft" : provider,
+}),
 
         const data = await res.json();
 
