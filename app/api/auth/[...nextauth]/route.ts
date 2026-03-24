@@ -1,6 +1,15 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import MicrosoftProvider from "next-auth/providers/azure-ad";
+import mysql from 'mysql2/promise';
+
+// ===========================================
+// بيانات اتصال MySQL من AwardSpace (نفس بيانات verify-email.php)
+// ===========================================
+const DB_HOST = 'fdb1029.awardspace.net';
+const DB_NAME = '4537032_bh';
+const DB_USER = '4537032_bh';
+const DB_PASS = 'sea12345';
 
 // التحقق من وجود المتغيرات البيئية لـ Google
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -21,9 +30,7 @@ export const authOptions: NextAuthOptions = {
     MicrosoftProvider({
       clientId: process.env.MICROSOFT_CLIENT_ID,
       clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
-      // استخدام "common" للسماح بأي حساب Microsoft شخصي (outlook, hotmail, live)
       tenantId: "common",
-      // تحديد نطاقات إضافية إذا احتجت
       authorization: {
         params: {
           scope: "openid email profile User.Read",
@@ -36,7 +43,7 @@ export const authOptions: NextAuthOptions = {
   
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 يوم
+    maxAge: 30 * 24 * 60 * 60,
   },
   
   pages: {
@@ -45,8 +52,7 @@ export const authOptions: NextAuthOptions = {
   },
   
   callbacks: {
-    // التحقق من البريد الإلكتروني عند تسجيل الدخول (لكل provider)
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       const provider = account?.provider || 'unknown';
       console.log(`🔐 محاولة دخول عبر ${provider}:`, user.email);
       
@@ -54,44 +60,76 @@ export const authOptions: NextAuthOptions = {
         console.log("❌ لا يوجد بريد إلكتروني");
         return false;
       }
-      
-      try {
-        // الاتصال بـ verify-email.php للتحقق من وجود البريد
-        const response = await fetch('http://jobsboard.mywebcommunity.org/verify-email.php', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: user.email,
-            name: user.name,
-            provider: provider,
-          }),
-          cache: 'no-cache',
-        });
 
-        if (!response.ok) {
-          console.log("❌ فشل الاتصال بـ verify-email.php");
+      // ===========================================
+      // 1. إذا كان Google: استخدم verify-email.php
+      // ===========================================
+      if (provider === 'google') {
+        try {
+          const response = await fetch('http://jobsboard.mywebcommunity.org/verify-email.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: user.email,
+              name: user.name,
+              provider: provider,
+            }),
+            cache: 'no-cache',
+          });
+          if (!response.ok) {
+            console.log("❌ فشل الاتصال بـ verify-email.php");
+            return false;
+          }
+          const data = await response.json();
+          if (data.success) {
+            console.log(`✅ البريد موجود - سماح بالدخول عبر ${provider}`);
+            return true;
+          } else {
+            console.log(`❌ البريد غير موجود - رفض الدخول عبر ${provider}`);
+            return false;
+          }
+        } catch (error) {
+          console.error("❌ خطأ في التحقق (Google):", error);
           return false;
         }
-
-        const data = await response.json();
-        
-        if (data.success) {
-          console.log(`✅ البريد موجود - سماح بالدخول عبر ${provider}`);
-          return true;
-        } else {
-          console.log(`❌ البريد غير موجود - رفض الدخول عبر ${provider}`);
-          return false;
-        }
-        
-      } catch (error) {
-        console.error("❌ خطأ في التحقق:", error);
-        return false;
       }
+
+      // ===========================================
+      // 2. إذا كان Microsoft: تحقق مباشرة من قاعدة البيانات
+      // ===========================================
+      if (provider === 'azure-ad') {
+        let connection;
+        try {
+          connection = await mysql.createConnection({
+            host: DB_HOST,
+            user: DB_USER,
+            password: DB_PASS,
+            database: DB_NAME,
+          });
+          const [rows] = await connection.execute(
+            'SELECT id FROM remote_users WHERE email = ?',
+            [user.email]
+          );
+          if (Array.isArray(rows) && rows.length > 0) {
+            console.log(`✅ بريد Microsoft موجود في قاعدة البيانات: ${user.email}`);
+            return true;
+          } else {
+            console.log(`❌ بريد Microsoft غير مسجل: ${user.email}`);
+            return false;
+          }
+        } catch (error) {
+          console.error("❌ خطأ في الاتصال بقاعدة البيانات (Microsoft):", error);
+          return false;
+        } finally {
+          if (connection) await connection.end();
+        }
+      }
+
+      // إذا كان provider غير معروف
+      console.log(`❌ Provider غير مدعوم: ${provider}`);
+      return false;
     },
     
-    // إضافة بيانات للـ JWT
     async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
@@ -101,7 +139,6 @@ export const authOptions: NextAuthOptions = {
       if (account) {
         token.accessToken = account.access_token;
         token.provider = account.provider;
-        // إضافة الـ refresh token إذا كان موجودًا
         if (account.refresh_token) {
           token.refreshToken = account.refresh_token;
         }
@@ -109,35 +146,28 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     
-    // إضافة بيانات للجلسة
     async session({ session, token }) {
       if (session?.user) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
         session.user.name = token.name as string;
       }
-      // إضافة التوكن للجلسة إذا احتجت استخدامه في API
       session.accessToken = token.accessToken as string;
       session.provider = token.provider as string;
       return session;
     },
     
-    // التوجيه بعد تسجيل الدخول
     async redirect({ url, baseUrl }) {
-      // ✅ تعديل: التوجيه إلى الصفحة الرئيسية بدلاً من dashboard1
       if (url.includes('error')) {
         return `${baseUrl}/login1?error=access_denied`;
       }
-      // إذا كان المستخدم قادم من صفحة معينة، ارجعه إليها
       if (url.startsWith('/')) {
         return `${baseUrl}${url}`;
       }
-      // التوجيه الافتراضي إلى الصفحة الرئيسية
       return `${baseUrl}/`;
     },
   },
   
-  // أحداث للتتبع
   events: {
     async signIn(message) {
       console.log("✅ مستخدم سجل دخول:", message.user?.email);
@@ -147,7 +177,6 @@ export const authOptions: NextAuthOptions = {
     },
   },
   
-  // تفعيل التصحيح في التطوير فقط
   debug: process.env.NODE_ENV === 'development',
 };
 
